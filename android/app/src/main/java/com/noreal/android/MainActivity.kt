@@ -402,6 +402,16 @@ class MainActivity : Activity() {
             ),
             margins(top = 6)
         )
+        if (!locationModeGpsOnly()) {
+            controls.addView(
+                text("定位模式为「高精度」，WiFi 与基站会覆盖模拟坐标，其他应用可能仍显示真实位置", 12, Palette.warning),
+                margins(top = 6)
+            )
+            controls.addView(
+                button("改为「仅设备」定位") { openLocationSettings() },
+                margins(top = 4)
+            )
+        }
         if (!batteryExempt()) {
             controls.addView(
                 button("允许后台运行 · 锁屏后继续模拟") { requestBatteryExemption() },
@@ -585,6 +595,21 @@ class MainActivity : Activity() {
         holdingLocation = false
         renderPage()
         toast(if (clean) "已恢复真实定位" else "清理未完成，请检查模拟位置授权")
+    }
+
+    /** 高精度模式会融合 WiFi/基站，把模拟坐标压回真实位置，必须切到仅设备。 */
+    private fun locationModeGpsOnly(): Boolean {
+        val mode = Settings.Secure.getInt(
+            contentResolver,
+            Settings.Secure.LOCATION_MODE,
+            Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
+        )
+        return mode == Settings.Secure.LOCATION_MODE_SENSORS_ONLY
+    }
+
+    private fun openLocationSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+            .onFailure { toast("请到设置 → 位置信息 里把定位模式改为「仅设备」") }
     }
 
     private fun batteryExempt(): Boolean =
