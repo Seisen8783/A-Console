@@ -267,9 +267,11 @@ class MainActivity : Activity() {
         val interaction = row()
         if (active != null) {
             val moving = active.clock.running
-            interaction.addView(button(if (moving) "暂停" else "继续", accent = true) {
-                sessionCommand(if (moving) LocationSessionService.PAUSE else LocationSessionService.RESUME)
-            }, weighted())
+            if (!active.hold) {
+                interaction.addView(button(if (moving) "暂停" else "继续", accent = true) {
+                    sessionCommand(if (moving) LocationSessionService.PAUSE else LocationSessionService.RESUME)
+                }, weighted())
+            }
             interaction.addView(button("停止") { stopPlayback() }, weighted())
             controls.addView(interaction)
             val sources = active.sources.joinToString("、").ifEmpty { "GPS" }
@@ -346,7 +348,10 @@ class MainActivity : Activity() {
             }
         }
         describeConfig()
-        interaction.addView(button("开始系统模拟", accent = true) { startPlayback() }, weighted())
+        interaction.addView(button("定位到起点") { startHold() },
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
+        interaction.addView(button("开始系统模拟", accent = true) { startPlayback() },
+            LinearLayout.LayoutParams(0, dp(48), 1.6f).apply { marginStart = dp(3); marginEnd = dp(3) })
         controls.addView(interaction)
         val allowed = MockLocationOutput.allowed(this)
         controls.addView(
@@ -450,31 +455,52 @@ class MainActivity : Activity() {
         duration = route.durationSeconds(value)
         playbackElapsed = 0.0
         if (!MockLocationOutput.allowed(this)) {
-            AlertDialog.Builder(this)
-                .setTitle("需要「模拟位置信息应用」授权")
-                .setMessage(
-                    "这一步只需做一次。\n\n" +
-                        "原生 Android：设置 → 开发者选项 → 选择模拟位置信息应用 → 选中 NoReal；" +
-                        "也可以在「应用详情 → 权限」里找同名开关。\n\n" +
-                        "鸿蒙、卓易通这类兼容层：鸿蒙设置里没有这一项，要到容器的 Android 设置里找。\n\n" +
-                        "adb 授予：\n" +
-                        "adb shell appops set com.noreal.android android:mock_location allow"
-                )
-                .setNegativeButton("取消", null)
-                .setNeutralButton("开发者选项") { _, _ ->
-                    runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
-                        .onFailure { openAppDetails() }
-                }
-                .setPositiveButton("仍然尝试") { _, _ -> beginMock(route, duration) }
-                .show()
+            showMockPermissionDialog { beginMock(route, duration) }
             return
         }
         beginMock(route, duration)
     }
 
+    private fun showMockPermissionDialog(onProceed: () -> Unit) {
+        AlertDialog.Builder(this)
+            .setTitle("需要「模拟位置信息应用」授权")
+            .setMessage(
+                "这一步只需做一次。\n\n" +
+                    "原生 Android：设置 → 开发者选项 → 选择模拟位置信息应用 → 选中 NoReal；" +
+                    "也可以在「应用详情 → 权限」里找同名开关。\n\n" +
+                    "鸿蒙、卓易通这类兼容层：鸿蒙设置里没有这一项，要到容器的 Android 设置里找。\n\n" +
+                    "adb 授予：\n" +
+                    "adb shell appops set com.noreal.android android:mock_location allow"
+            )
+            .setNegativeButton("取消", null)
+            .setNeutralButton("开发者选项") { _, _ ->
+                runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
+                    .onFailure { openAppDetails() }
+            }
+            .setPositiveButton("仍然尝试") { _, _ -> onProceed() }
+            .show()
+    }
+
     private fun beginMock(route: Route, lapSeconds: Double) {
         SessionEvents.mockRequest = MockRequest(route, lapSeconds, laps.coerceAtLeast(1))
         askLocation(LocationSessionService.START_MOCK)
+    }
+
+    /** 把定位直接钉在当前轨迹的起点，不跑轨迹。 */
+    private fun startHold() {
+        if (busy()) return
+        val route = selected ?: run { toast("请先选择轨迹。"); return }
+        playbackElapsed = 0.0
+        if (!MockLocationOutput.allowed(this)) {
+            showMockPermissionDialog { beginHold(route) }
+            return
+        }
+        beginHold(route)
+    }
+
+    private fun beginHold(route: Route) {
+        SessionEvents.holdRequest = route
+        askLocation(LocationSessionService.START_HOLD)
     }
 
     private fun stopPlayback() {
@@ -514,7 +540,9 @@ class MainActivity : Activity() {
 
     private fun sessionCommand(action: String) {
         val intent = Intent(this, LocationSessionService::class.java).setAction(action)
-        val start = action == LocationSessionService.START_MOCK || action == LocationSessionService.START_RECORD
+        val start = action == LocationSessionService.START_MOCK ||
+            action == LocationSessionService.START_RECORD ||
+            action == LocationSessionService.START_HOLD
         if (start && sessionStarting) return
         if (start) {
             sessionStarting = true
@@ -570,7 +598,7 @@ class MainActivity : Activity() {
 
     private fun requestFrames() {
         val running = when (val current = serviceState) {
-            is SessionState.Mock -> current.clock.running
+            is SessionState.Mock -> current.clock.running && !current.hold
             is SessionState.Recording -> current.clock.running
             is SessionState.Idle -> false
         }
@@ -601,6 +629,17 @@ class MainActivity : Activity() {
                     return
                 }
                 val system = active as? SessionState.Mock
+                if (system?.hold == true) {
+                    val point = system.holdPoint
+                    val holding = system.clock.running
+                    if (force || holding) map.showPosition(point, 0.0, null)
+                    status.text = if (holding) "已定位在起点 · 保持中" else "定位保持已暂停"
+                    detail.text = String.format(Locale.ROOT, "%.6f, %.6f  ·  静态\n系统定位源  %s",
+                        point.latitude, point.longitude,
+                        system.sources.joinToString("、").ifEmpty { "GPS" })
+                    if (progress.progress != 0) progress.progress = 0
+                    return
+                }
                 val lapSeconds = system?.duration ?: duration
                 val lapTotal = system?.lapCount ?: laps.coerceAtLeast(1)
                 val total = if (system != null) system.totalDuration else lapSeconds * lapTotal

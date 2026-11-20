@@ -88,11 +88,13 @@ internal class LocationSessionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            START_RECORD, START_MOCK -> {
+            START_RECORD, START_MOCK, START_HOLD -> {
                 val mockRequest = if (intent.action == START_MOCK) SessionEvents.mockRequest else null
+                val holdRequest = if (intent.action == START_HOLD) SessionEvents.holdRequest else null
                 SessionEvents.mockRequest = null
+                SessionEvents.holdRequest = null
                 try {
-                    promote(intent.action == START_RECORD)
+                    promote(intent.action.orEmpty())
                 } catch (_: SecurityException) {
                     SessionEvents.publish(SessionState.Idle("请先授予精确定位权限。"))
                     stopSelf(startId)
@@ -101,10 +103,16 @@ internal class LocationSessionService : Service() {
                 handler.post {
                     if (state !is SessionState.Idle) return@post
                     runCatching {
-                        if (intent.action == START_RECORD) beginRecord()
-                        else {
-                            checkNotNull(mockRequest) { "请选择要回放的轨迹。" }
-                            beginMock(mockRequest.route, mockRequest.duration, mockRequest.laps)
+                        when (intent.action) {
+                            START_RECORD -> beginRecord()
+                            START_HOLD -> {
+                                checkNotNull(holdRequest) { "请选择要定位的轨迹。" }
+                                beginHold(holdRequest)
+                            }
+                            else -> {
+                                checkNotNull(mockRequest) { "请选择要回放的轨迹。" }
+                                beginMock(mockRequest.route, mockRequest.duration, mockRequest.laps)
+                            }
                         }
                     }.onFailure { finish(errorMessage(it), preserveDraft = true) }
                 }
@@ -117,7 +125,7 @@ internal class LocationSessionService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun promote(recording: Boolean) {
+    private fun promote(action: String) {
         val notifications = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             notifications.createNotificationChannel(
@@ -132,7 +140,13 @@ internal class LocationSessionService : Service() {
         @Suppress("DEPRECATION")
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else Notification.Builder(this)
         val notification = builder.setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle(if (recording) "NoReal · 真实轨迹录制" else "NoReal · 系统测试定位")
+            .setContentTitle(
+                when (action) {
+                    START_RECORD -> "NoReal · 真实轨迹录制"
+                    START_HOLD -> "NoReal · 定位保持"
+                    else -> "NoReal · 系统测试定位"
+                }
+            )
             .setContentText("点此返回轨迹界面")
             .setOnlyAlertOnce(true)
             .setOngoing(true)
@@ -219,6 +233,25 @@ internal class LocationSessionService : Service() {
         ))
     }
 
+    private fun beginHold(route: com.noreal.core.Route) {
+        val enabled = if (Build.VERSION.SDK_INT >= 28) location.isLocationEnabled
+            else location.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        check(enabled) { "请开启手机定位服务。" }
+        output.start()
+        val power = getSystemService(PowerManager::class.java)
+        wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:hold").apply {
+            setReferenceCounted(false)
+            acquire(3_600_000L)
+        }
+        mockEpoch = System.currentTimeMillis()
+        mockStart = SystemClock.elapsedRealtimeNanos()
+        terminalFrame = false
+        val holding = SessionState.Mock(route, 0.0, PlaybackClock(startedNanos = mockStart),
+            output.activeSources, 1, hold = true)
+        update(holding)
+        publishMock(holding, first = true)
+    }
+
     private fun beginMock(route: com.noreal.core.Route, duration: Double, laps: Int) {
         val enabled = if (Build.VERSION.SDK_INT >= 28) location.isLocationEnabled
             else location.isProviderEnabled(LocationManager.GPS_PROVIDER)
@@ -240,6 +273,14 @@ internal class LocationSessionService : Service() {
     }
 
     private fun publishMock(current: SessionState.Mock, first: Boolean = false) {
+        if (current.hold) {
+            if (!current.clock.running) return
+            val now = SystemClock.elapsedRealtimeNanos()
+            output.publish(current.holdPoint, 0.0, 0.0, mockEpoch + (now - mockStart) / 1_000_000L, now)
+            if (current.sources != output.activeSources) update(current.copy(sources = output.activeSources))
+            handler.postDelayed(pulse, 1000L)
+            return
+        }
         if (terminalFrame) {
             finish("模拟完成。", preserveDraft = false)
             return
@@ -344,6 +385,7 @@ internal class LocationSessionService : Service() {
     companion object {
         const val START_RECORD = "record"
         const val START_MOCK = "mock"
+        const val START_HOLD = "hold"
         const val PAUSE = "pause"
         const val RESUME = "resume"
         const val STOP = "stop"

@@ -23,11 +23,14 @@ internal sealed interface SessionState {
         val duration: Double,
         val clock: PlaybackClock,
         val sources: List<String>,
-        val laps: Int = 1
+        val laps: Int = 1,
+        /** 静止保持模式：不推进轨迹，只把定位钉在轨迹起点上。 */
+        val hold: Boolean = false
     ) : SessionState {
         val lapCount: Int get() = laps.coerceAtLeast(1)
-        val totalDuration: Double get() = duration * lapCount
+        val totalDuration: Double get() = if (hold) 0.0 else duration * lapCount
         val totalMeters: Double get() = route.lengthMeters * lapCount
+        val holdPoint: Point get() = route.points.first()
 
         /** 当前所在圈（从 1 开始），已跑完或超过总时长时夹到最后一圈。 */
         fun lapAt(elapsed: Double): Int {
@@ -62,6 +65,9 @@ internal object SessionEvents {
         private set
     @Volatile var starting = false
     var mockRequest: MockRequest? = null
+
+    /** 静止保持请求：把定位钉在这条轨迹的起点。 */
+    var holdRequest: Route? = null
 
     fun observe(observer: (SessionState) -> Unit) {
         observers.add(observer)
