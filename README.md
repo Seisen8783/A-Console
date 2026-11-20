@@ -36,6 +36,22 @@ adb shell dumpsys location | grep "last location=Location\[gps"
 
 要突破这层限制只能靠 root + LSPosed hook `Location.isMock()`，属于本项目的范围之外。
 
+### 绕过办法：接管模式 + LocBridge 模块
+
+仓库里的 `locbridge` 模块就是干这个的，走的是**换注入路径**而不是**去标记**：
+
+- NoReal 打开「接管模式」后，不再写系统定位源，改为每秒把一帧坐标广播到本机回环地址
+  `127.0.0.1:38765`。
+- LocBridge 通过 Xposed 注入微信的**全部进程**（主进程和 `:appbrand` 小程序逻辑层），
+  把 `LocationManager` 的三条读取路径（`getLastKnownLocation` / `getCurrentLocation` /
+  `requestLocationUpdates`）换掉，交给应用的是自己 `new Location(...)` 造出来的对象——
+  它的 `isMock` 默认就是 `false`，腾讯位置服务拿它没办法。
+- 模块另外还 hook 了 `Location.isMock()` 作为兜底，配合普通模式也能把系统打上的标记擦掉。
+
+这套方案是手机本地运行的：坐标流只走回环地址，不出设备，也不需要外部网络。
+
+详见 [`docs/LocBridge-方案.md`](docs/LocBridge-方案.md)，里面写了协议、安装步骤、验证方法和风险。
+
 ### 兼容层与鸿蒙
 
 鸿蒙（包括卓易通这类安卓容器）的设置里没有「选择模拟位置信息应用」，那是 AOSP 的入口，纯血鸿蒙已经移除，不是没找到。

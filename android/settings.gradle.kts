@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "NoReal"
 include(":app")
+include(":locbridge")

@@ -25,7 +25,14 @@ internal sealed interface SessionState {
         val sources: List<String>,
         val laps: Int = 1,
         /** 静止保持模式：不推进轨迹，只把定位钉在轨迹起点上。 */
-        val hold: Boolean = false
+        val hold: Boolean = false,
+        /**
+         * 接管模式：不写系统定位源，改为把坐标在本机广播给 LocBridge 模块，
+         * 由模块直接构造 Location 交给目标应用，因此不带系统打上的 mock 标记。
+         */
+        val intercept: Boolean = false,
+        /** 接管模式下已经连上本机坐标流的订阅者数量，0 说明模块还没接上。 */
+        val subscribers: Int = 0
     ) : SessionState {
         val lapCount: Int get() = laps.coerceAtLeast(1)
         val totalDuration: Double get() = if (hold) 0.0 else duration * lapCount
@@ -48,7 +55,12 @@ internal sealed interface SessionState {
 }
 
 /** 一次模拟请求：单圈时长与圈数分开存，总时长由两者相乘得到。 */
-internal data class MockRequest(val route: Route, val duration: Double, val laps: Int)
+internal data class MockRequest(
+    val route: Route,
+    val duration: Double,
+    val laps: Int,
+    val intercept: Boolean = false
+)
 
 internal data class PlaybackClock(val elapsed: Double = 0.0, val startedNanos: Long = 0L) {
     val running: Boolean get() = startedNanos != 0L

@@ -72,6 +72,8 @@ class MainActivity : Activity() {
     private var duration = 0.0
     private var laps = 1
     private var holdingLocation = false
+    /** 接管模式：坐标不经系统定位源，直接在本机广播给 LocBridge 模块。 */
+    private var intercept = false
     private var pendingStart = false
     private var lastProgress = -1
     private var lastReadoutSecond = -1L
@@ -296,7 +298,19 @@ class MainActivity : Activity() {
             interaction.addView(button("停止") { stopPlayback() }, weighted())
             controls.addView(interaction)
             val sources = active.sources.joinToString("、").ifEmpty { "GPS" }
-            controls.addView(text("正在写入系统定位源 · $sources", 12, MUTED), margins(top = 6))
+            controls.addView(
+                text(
+                    if (active.intercept) {
+                        val subscribers = active.subscribers
+                        val link = if (subscribers > 0) "已连接 $subscribers 个订阅者" else "等待 LocBridge 模块接入"
+                        "正在本机广播坐标 · $link"
+                    } else {
+                        "正在写入系统定位源 · $sources"
+                    },
+                    12, if (active.intercept && active.subscribers == 0) Palette.warning else MUTED
+                ),
+                margins(top = 6)
+            )
             return
         }
 
@@ -372,6 +386,25 @@ class MainActivity : Activity() {
             describeConfig()
         }
 
+        val interceptRow = row().apply { gravity = Gravity.CENTER_VERTICAL }
+        interceptRow.addView(
+            text("接管模式 · 坐标交给 LocBridge", 13, if (intercept) TEXT else MUTED),
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        interceptRow.addView(Switch(this).apply {
+            isChecked = intercept
+            setOnCheckedChangeListener { _, checked ->
+                if (checked && busy()) {
+                    isChecked = false
+                    toast("请先结束当前的会话再切换模式。")
+                    return@setOnCheckedChangeListener
+                }
+                intercept = checked
+                renderControls()
+            }
+        })
+        controls.addView(interceptRow, margins(top = 8))
+
         val switchRow = row().apply { gravity = Gravity.CENTER_VERTICAL }
         switchRow.addView(
             text(
@@ -396,13 +429,16 @@ class MainActivity : Activity() {
         val allowed = MockLocationOutput.allowed(this)
         controls.addView(
             text(
-                if (allowed) "已授权 · 模拟坐标会写入系统定位源，其他应用可直接读取"
-                else "未授权 · 需在开发者选项把 NoReal 设为模拟位置信息应用",
-                12, if (allowed) MUTED else Palette.warning
+                when {
+                    intercept -> "接管模式 · 坐标只在本机广播，由 LocBridge 模块直接交给目标应用，不需要模拟定位授权"
+                    allowed -> "已授权 · 模拟坐标会写入系统定位源，其他应用可直接读取"
+                    else -> "未授权 · 需在开发者选项把 NoReal 设为模拟位置信息应用"
+                },
+                12, if (intercept || allowed) MUTED else Palette.warning
             ),
             margins(top = 6)
         )
-        if (!locationModeGpsOnly()) {
+        if (!intercept && !locationModeGpsOnly()) {
             controls.addView(
                 text("定位模式为「高精度」，WiFi 与基站会覆盖模拟坐标，其他应用可能仍显示真实位置", 12, Palette.warning),
                 margins(top = 6)
@@ -518,7 +554,7 @@ class MainActivity : Activity() {
         pace = value
         duration = route.durationSeconds(value)
         playbackElapsed = 0.0
-        if (!MockLocationOutput.allowed(this)) {
+        if (!intercept && !MockLocationOutput.allowed(this)) {
             showMockPermissionDialog { beginMock(route, duration) }
             return
         }
@@ -546,7 +582,7 @@ class MainActivity : Activity() {
     }
 
     private fun beginMock(route: Route, lapSeconds: Double) {
-        SessionEvents.mockRequest = MockRequest(route, lapSeconds, laps.coerceAtLeast(1))
+        SessionEvents.mockRequest = MockRequest(route, lapSeconds, laps.coerceAtLeast(1), intercept)
         askLocation(LocationSessionService.START_MOCK)
     }
 
@@ -627,6 +663,11 @@ class MainActivity : Activity() {
     }
 
     private fun askLocation(action: String) {
+        // 接管模式不读系统定位，也就不需要定位权限。
+        if (action == LocationSessionService.START_MOCK && intercept) {
+            sessionCommand(action)
+            return
+        }
         if (!hasFineLocation()) {
             requestingPermission = action
             requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), PERMISSION_LOCATION)

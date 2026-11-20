@@ -30,6 +30,7 @@ internal class LocationSessionService : Service() {
     private lateinit var handler: Handler
     private lateinit var store: TrackStore
     private lateinit var output: MockLocationOutput
+    private var broadcaster: LocalBroadcaster? = null
     private lateinit var location: LocationManager
     private var wakeLock: PowerManager.WakeLock? = null
     private var state: SessionState = SessionState.Idle()
@@ -94,7 +95,7 @@ internal class LocationSessionService : Service() {
                 SessionEvents.mockRequest = null
                 SessionEvents.holdRequest = null
                 try {
-                    promote(intent.action.orEmpty())
+                    promote(intent.action.orEmpty(), mockRequest?.intercept == true)
                 } catch (_: SecurityException) {
                     SessionEvents.publish(SessionState.Idle("请先授予精确定位权限。"))
                     stopSelf(startId)
@@ -111,7 +112,7 @@ internal class LocationSessionService : Service() {
                             }
                             else -> {
                                 checkNotNull(mockRequest) { "请选择要回放的轨迹。" }
-                                beginMock(mockRequest.route, mockRequest.duration, mockRequest.laps)
+                                beginMock(mockRequest.route, mockRequest.duration, mockRequest.laps, mockRequest.intercept)
                             }
                         }
                     }.onFailure { finish(errorMessage(it), preserveDraft = true) }
@@ -125,7 +126,7 @@ internal class LocationSessionService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun promote(action: String) {
+    private fun promote(action: String, intercept: Boolean = false) {
         val notifications = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
             notifications.createNotificationChannel(
@@ -144,7 +145,7 @@ internal class LocationSessionService : Service() {
                 when (action) {
                     START_RECORD -> "NoReal · 真实轨迹录制"
                     START_HOLD -> "NoReal · 定位保持"
-                    else -> "NoReal · 系统测试定位"
+                    else -> if (intercept) "NoReal · 接管模式 · 本机广播坐标" else "NoReal · 系统测试定位"
                 }
             )
             .setContentText("点此返回轨迹界面")
@@ -252,11 +253,19 @@ internal class LocationSessionService : Service() {
         publishMock(holding, first = true)
     }
 
-    private fun beginMock(route: com.noreal.core.Route, duration: Double, laps: Int) {
-        val enabled = if (Build.VERSION.SDK_INT >= 28) location.isLocationEnabled
-            else location.isProviderEnabled(LocationManager.GPS_PROVIDER)
-        check(enabled) { "请开启手机定位服务。" }
-        output.start()
+    private fun beginMock(route: com.noreal.core.Route, duration: Double, laps: Int, intercept: Boolean) {
+        if (intercept) {
+            // 接管模式不碰系统定位源：坐标走本机广播，由 LocBridge 模块直接交给目标应用。
+            // 这样既不需要模拟定位授权，目标应用也读不到系统打上的 mock 标记。
+            val bus = LocalBroadcaster()
+            check(bus.start()) { "无法监听本机坐标端口：${bus.lastError}" }
+            broadcaster = bus
+        } else {
+            val enabled = if (Build.VERSION.SDK_INT >= 28) location.isLocationEnabled
+                else location.isProviderEnabled(LocationManager.GPS_PROVIDER)
+            check(enabled) { "请开启手机定位服务。" }
+            output.start()
+        }
         val total = duration * laps.coerceAtLeast(1)
         val power = getSystemService(PowerManager::class.java)
         wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:replay").apply {
@@ -269,40 +278,63 @@ internal class LocationSessionService : Service() {
         mockStart = SystemClock.elapsedRealtimeNanos()
         terminalFrame = false
         val playing = SessionState.Mock(route, duration, PlaybackClock(startedNanos = mockStart),
-            output.activeSources, laps)
+            if (intercept) listOf("本机广播") else output.activeSources, laps, intercept = intercept)
         update(playing)
         publishMock(playing, first = true)
     }
 
     private fun publishMock(current: SessionState.Mock, first: Boolean = false) {
+        val now = SystemClock.elapsedRealtimeNanos()
+        val epochMillis = mockEpoch + (now - mockStart) / 1_000_000L
         if (current.hold) {
             if (!current.clock.running) return
-            val now = SystemClock.elapsedRealtimeNanos()
-            output.publish(current.holdPoint, 0.0, 0.0, mockEpoch + (now - mockStart) / 1_000_000L, now)
-            if (current.sources != output.activeSources) update(current.copy(sources = output.activeSources))
+            emit(current, current.holdPoint, 0.0, 0.0, epochMillis, now, 1)
             handler.postDelayed(pulse, 1000L)
             return
         }
         if (terminalFrame) {
-            finish("模拟完成", preserveDraft = false, keepLocation = true)
+            // 接管模式下没有测试定位源需要保留，系统定位始终是真实值。
+            finish("模拟完成", preserveDraft = false, keepLocation = !current.intercept)
             return
         }
-        val now = SystemClock.elapsedRealtimeNanos()
         val total = current.totalDuration
         val elapsed = if (first) 0.0 else current.clock.read(now).coerceIn(0.0, total)
         val result = current.route.sample(current.withinLap(elapsed), current.duration)
         terminalFrame = elapsed >= total
-        output.publish(
-            result.point,
-            if (current.clock.running && !terminalFrame) result.speedMps else 0.0,
-            result.bearingDegrees,
-            mockEpoch + (now - mockStart) / 1_000_000L,
-            now
-        )
-        if (current.sources != output.activeSources) update(current.copy(sources = output.activeSources))
+        val speed = if (current.clock.running && !terminalFrame) result.speedMps else 0.0
+        emit(current, result.point, speed, result.bearingDegrees, epochMillis, now, current.lapAt(elapsed))
         val remaining = if (current.clock.running) ((total - elapsed) * 1000.0).roundToLong() else 1000L
         val delay = if (terminalFrame) 1000L else remaining.coerceIn(1L, 1000L)
         handler.postDelayed(pulse, delay)
+    }
+
+    /** 接管模式走本机广播，普通模式写系统定位源。 */
+    private fun emit(
+        current: SessionState.Mock,
+        point: com.noreal.core.Point,
+        speed: Double,
+        bearing: Double,
+        epochMillis: Long,
+        monotonicNanos: Long,
+        lap: Int
+    ) {
+        if (current.intercept) {
+            broadcaster?.publish(
+                point.latitude,
+                point.longitude,
+                speed,
+                bearing,
+                BROADCAST_ACCURACY,
+                epochMillis,
+                monotonicNanos,
+                lap
+            )
+            val subscribers = broadcaster?.clientCount ?: 0
+            if (current.subscribers != subscribers) update(current.copy(subscribers = subscribers))
+            return
+        }
+        output.publish(point, speed, bearing, epochMillis, monotonicNanos)
+        if (current.sources != output.activeSources) update(current.copy(sources = output.activeSources))
     }
 
     private fun pause() {
@@ -349,6 +381,8 @@ internal class LocationSessionService : Service() {
         handler.removeCallbacks(pulse)
         val recording = state as? SessionState.Recording
         stopFixes()
+        broadcaster?.stop()
+        broadcaster = null
         val clean = runCatching {
             if (keepLocation) output.markHeld() else output.restorePending()
         }.getOrDefault(false)
@@ -405,6 +439,8 @@ internal class LocationSessionService : Service() {
         handler.removeCallbacksAndMessages(null)
         handler.post {
             stopFixes()
+            broadcaster?.stop()
+            broadcaster = null
             if (state !is SessionState.Idle) {
                 runCatching { output.restorePending() }
                 releaseWakeLock()
@@ -428,5 +464,6 @@ internal class LocationSessionService : Service() {
         private const val NOTIFICATION_ID = 10
         private const val NOTIFICATION_DONE_ID = 11
         private const val GAP_NANOS = 15_000_000_000L
+        private const val BROADCAST_ACCURACY = 3.0
     }
 }
