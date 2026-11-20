@@ -1,7 +1,8 @@
 #!/usr/bin/env swift
 
-// 生成 UnReal Console 的应用图标（白底黑色定位针）。
+// 生成 UnReal Console 的应用图标。
 //
+// 图案：白底 + 蓝色实心圆 + 深色导航箭头（Apple Maps 风格，尖端朝右上）。
 // 用 CoreGraphics 直接绘制 PNG，再交给 iconutil 合成 .icns。
 // 不依赖 rsvg-convert / ImageMagick 等外部工具。
 
@@ -22,10 +23,30 @@ let sizes: [(String, Int)] = [
     ("icon_512x512@2x.png", 1024),
 ]
 
-/// 白底。
+/// 圆与箭头的颜色取自原始图标：蓝 #4479FB，箭头 #333333。
+let circleBlue = NSColor(srgbRed: 68.0 / 255.0, green: 121.0 / 255.0, blue: 251.0 / 255.0, alpha: 1)
+let arrowInk = NSColor(srgbRed: 51.0 / 255.0, green: 51.0 / 255.0, blue: 51.0 / 255.0, alpha: 1)
 let background = NSColor.white
-/// 墨色 #16181D，与设计系统的强调色一致。
-let foreground = NSColor(srgbRed: 0.086, green: 0.094, blue: 0.114, alpha: 1)
+
+/// 圆心与半径（以 512 的画布为单位）。
+///
+/// 比例取自原始图标：蓝圆直径约占画布宽度的 69%，四周留白，
+/// 圆心基本居中（纵向略偏上一点点）。
+let center = 256.0
+let circleCenterY = 248.0
+let radius = 176.0
+
+/// 导航箭头的顶点，单位为「圆半径的比例」，原点在圆心，y 轴向上。
+///
+/// 数值由原始图标的像素轮廓反推得到：
+/// 尖端 (51,23)、左侧末端 (24,36)、尾翼折角 (38,39)、尾针末端 (40,51)，
+/// 圆心 (40,36)、半径 27。
+private let arrowPoints: [(x: Double, y: Double)] = [
+    (0.407, 0.481),   // 尖端（右上）
+    (-0.593, 0.000),  // 左侧斜边末端
+    (-0.074, -0.111), // 尾翼折角
+    (0.000, -0.556),  // 尾针末端
+]
 
 /// 画一个 size×size 的图标。
 func makeIcon(size: Int) -> NSBitmapImageRep {
@@ -37,45 +58,30 @@ func makeIcon(size: Int) -> NSBitmapImageRep {
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
 
     let scale = CGFloat(size) / 512.0
-    func point(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
-        NSPoint(x: x * scale, y: (512 - y) * scale)
-    }
 
     // 白底
     background.setFill()
     NSRect(x: 0, y: 0, width: size, height: size).fill()
 
-    // 定位针：尖端朝上的水滴轮廓。
-    let path = NSBezierPath()
-    path.move(to: point(256, 96))
-    path.curve(to: point(148, 288),
-               controlPoint1: point(148, 214),
-               controlPoint2: point(148, 288))
-    path.curve(to: point(256, 400),
-               controlPoint1: point(148, 351),
-               controlPoint2: point(196, 400))
-    path.curve(to: point(364, 288),
-               controlPoint1: point(316, 400),
-               controlPoint2: point(364, 351))
-    path.curve(to: point(256, 96),
-               controlPoint1: point(364, 288),
-               controlPoint2: point(364, 214))
-    path.close()
-    foreground.setStroke()
-    path.lineWidth = 26 * scale
-    path.lineCapStyle = .round
-    path.lineJoinStyle = .round
-    path.stroke()
+    // 蓝色实心圆
+    circleBlue.setFill()
+    NSBezierPath(ovalIn: NSRect(x: (center - radius) * scale, y: (circleCenterY - radius) * scale,
+                                width: radius * 2 * scale, height: radius * 2 * scale)).fill()
 
-    // 中心圆点：实心墨色 + 白色内芯。
-    let outer = NSBezierPath(ovalIn: NSRect(x: (256 - 52) * scale, y: (512 - 286 - 52) * scale,
-                                           width: 104 * scale, height: 104 * scale))
-    foreground.setFill()
-    outer.fill()
-    let inner = NSBezierPath(ovalIn: NSRect(x: (256 - 20) * scale, y: (512 - 286 - 20) * scale,
-                                           width: 40 * scale, height: 40 * scale))
-    background.setFill()
-    inner.fill()
+    // 导航箭头。顶点按半径比例给出，映射到画布坐标。
+    let path = NSBezierPath()
+    for (index, point) in arrowPoints.enumerated() {
+        let x = (center + point.x * radius) * scale
+        let y = (circleCenterY + point.y * radius) * scale
+        if index == 0 {
+            path.move(to: NSPoint(x: x, y: y))
+        } else {
+            path.line(to: NSPoint(x: x, y: y))
+        }
+    }
+    path.close()
+    arrowInk.setFill()
+    path.fill()
 
     NSGraphicsContext.restoreGraphicsState()
     return rep

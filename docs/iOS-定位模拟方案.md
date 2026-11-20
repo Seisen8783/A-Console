@@ -209,7 +209,7 @@ UnReal 的轨迹引擎已经有 `Route.sample(elapsedSeconds, durationSeconds)`�
 轨迹 → 按配速展开（Route.sample()）→ 1 秒采样 → 写 trkpt + time → GPX
 ```
 
-落在 `core/kotlin/com/noreal/core/GpxWriter.kt`，与平台无关：
+落在 `core/kotlin/com/unreal/core/GpxWriter.kt`，与平台无关：
 
 - 复用 `Route.sample()`，无需新算法
 - 圈数在外层重复，时间戳连续累加
@@ -235,7 +235,7 @@ Swift 控制台 + Python 设备桥接（`device_bridge.py`，包 `pymobiledevice
 ### 5.3 一条命令的闭环（未做）
 
 ```bash
-noreal push route.gpx        # UnReal 生成的 GPX 直接推给 iPhone
+unreal push route.gpx        # UnReal 生成的 GPX 直接推给 iPhone
 ```
 
 ---

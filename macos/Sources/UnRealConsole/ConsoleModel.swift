@@ -34,8 +34,9 @@ final class ConsoleModel: ObservableObject {
     @Published private(set) var useCenterline = true
     @Published private(set) var lapsInput = "1"
     @Published var targetKilometers: String = ""
-    @Published var coordinateSystem: CoordinateSystem = .wgs84
+    @Published var coordinateSystem: CoordinateSystem = .gcj02
     @Published var calibration = CalibrationOffset.zero
+    @Published var trackSource: TrackSource = .bundled
     @Published private(set) var timeline: [TrackPoint] = []
     @Published private(set) var paused = false
     @Published private(set) var hasStarted = false
@@ -178,10 +179,45 @@ final class ConsoleModel: ObservableObject {
         }
     }
 
+    /// 内置默认轨迹的坐标基准固定为 WGS-84。
+    ///
+    /// 该文件与 `core/assets/campus.geojson` 逐点一致，而后者在 README 中
+    /// 明确声明为 WGS-84。若按 GCJ-02 解读，整条轨迹会平移约 475 米。
+    static let bundledCoordinateSystem: CoordinateSystem = .wgs84
+
+    /// 当前生效的坐标基准。
+    ///
+    /// 内置默认轨迹用固定基准；本地导入的轨迹用用户选择的。
+    var effectiveCoordinateSystem: CoordinateSystem {
+        trackSource == .bundled ? Self.bundledCoordinateSystem : coordinateSystem
+    }
+
+    /// 载入内置默认轨迹。
+    func loadBundledTrack() {
+        guard !busy else { return }
+        guard let url = Bundle.module.url(forResource: TrackSource.bundledFileName,
+                                          withExtension: "kmz") else {
+            importError = "找不到内置默认轨迹。"
+            return
+        }
+        trackSource = .bundled
+        load(url)
+        status = "已载入默认轨迹"
+    }
+
+    /// 载入本地导入的轨迹，沿用用户选择的坐标基准。
+    func loadLocalTrack(_ url: URL) {
+        trackSource = .localFile
+        load(url)
+    }
+
     /// 轨迹文件声明的坐标基准。导入后若改变，需重新归一化。
+    ///
+    /// 内置默认轨迹的基准是固定的（WGS-84），此时改选择不会有效果。
     func setCoordinateSystem(_ value: CoordinateSystem) {
         guard canEditSettings, value != coordinateSystem else { return }
         coordinateSystem = value
+        guard trackSource != .bundled else { return }
         rebuildRoute()
     }
 
@@ -228,9 +264,12 @@ final class ConsoleModel: ObservableObject {
 
     private func rebuildRoute() {
         guard var source = originalRoute else { return }
+        // 内置默认轨迹的基准是确定的，不随用户的「坐标基准」选择改变；
+        // 本地导入的轨迹才用用户选的那个。
+        let system = effectiveCoordinateSystem
         // 先归一化坐标基准，再套用标定偏移。顺序不能反：
         // 偏移是米制平移，必须在经纬度空间做；基准转换是非线性变换，必须先做。
-        source = coordinateSystem.normalized(route: source)
+        source = system.normalized(route: source)
         let shiftedPoints: [TrackPoint] = calibration.apply(to: source.points)
         let shiftedSegments: [[TrackPoint]]? = source.untimedSegments.map { segments in
             segments.map { calibration.apply(to: $0) }

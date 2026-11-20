@@ -10,6 +10,7 @@ let package = Package(
             resources: [
                 .copy("Resources/device_bridge.py"),
                 .copy("Resources/VERSION"),
+                .copy("Resources/default-track.kmz"),
             ]
         ),
         .testTarget(name: "UnRealConsoleTests", dependencies: ["UnRealConsole"])

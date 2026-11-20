@@ -42,7 +42,10 @@ private struct ConsoleView: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: trackTypes) { result in
             if case let .success(url) = result { open(url) }
         }
-        .task { model.refresh() }
+        .task {
+            model.loadBundledTrack()
+            model.refresh()
+        }
     }
 
     private var sidebar: some View {
@@ -89,8 +92,13 @@ private struct ConsoleView: View {
 
             VStack(alignment: .leading, spacing: 9) {
                 Text("轨迹文件").font(.headline)
-                Button { importing = true } label: { Label("选择轨迹", systemImage: "folder") }
-                    .disabled(model.busy)
+                Picker("轨迹来源", selection: trackSourceBinding) {
+                    ForEach(TrackSource.allCases) { source in
+                        Text(source.displayName).tag(source)
+                    }
+                }
+                .disabled(model.busy)
+                .help("默认路径为内置的校园跑走廊；本地导入会打开文件选择器。")
                 if let route = model.route {
                     Text(route.name)
                         .font(.callout)
@@ -103,8 +111,10 @@ private struct ConsoleView: View {
                         Text(system.displayName).tag(system)
                     }
                 }
-                .disabled(!model.canEditSettings)
-                .help("轨迹文件使用的坐标系。设备只接受 WGS-84，选错会导致位置整体偏移。")
+                .disabled(!model.canEditSettings || model.trackSource == .bundled)
+                .help(model.trackSource == .bundled
+                      ? "内置默认轨迹的基准固定为 WGS-84。导入自己的轨迹后才能选择基准。"
+                      : "轨迹文件使用的坐标系。设备只接受 WGS-84，选错会导致位置整体偏移。")
                 calibrationFields
                 if model.route?.untimedSegments != nil {
                     HStack {
@@ -180,6 +190,24 @@ private struct ConsoleView: View {
         .frame(width: 255)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(.regularMaterial)
+    }
+
+    /// 轨迹来源下拉框。
+    ///
+    /// 选「本地导入」时唤起 Finder 选文件；选「默认路径」时载入内置轨迹。
+    /// 选完之后下拉框回到「默认路径」——否则无法再次触发同一个选项。
+    private var trackSourceBinding: Binding<TrackSource> {
+        Binding(get: { model.trackSource },
+                set: { source in
+                    switch source {
+                    case .bundled:
+                        model.loadBundledTrack()
+                    case .localFile:
+                        importing = true
+                        // 保持选中态为「本地导入」，让用户看清当前用的是导入的文件。
+                        model.trackSource = .localFile
+                    }
+                })
     }
 
     /// 米数进度：已模拟 / 本次总计。
@@ -382,7 +410,7 @@ private struct ConsoleView: View {
     private func open(_ url: URL) {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        model.load(url)
+        model.loadLocalTrack(url)
     }
 
     private func duration(_ seconds: Double) -> String {

@@ -1,6 +1,6 @@
 # UnReal
 
-定位开发测试工具。把一条轨迹按配速展开成连续的坐标序列，注入设备的系统定位通道，让设备沿这条轨迹移动。
+把一条轨迹按配速展开成连续的坐标序列，注入设备的系统定位通道，让设备沿这条轨迹移动。
 
 当前主线是 **macOS 控制台 → iPhone**：Mac 通过 USB 连上测试机，走开发者服务里的 LocationSimulation 通道注入坐标，整机的 CoreLocation 输出随之被替换。手机上不用装任何 App，不用越狱，也不用开发者账号。
 
@@ -22,6 +22,8 @@ Mac 控制台（Swift）
 ```
 
 轨迹支持 GPX、KMZ、KML。带时间戳的轨迹按记录时间回放，只有坐标的按输入配速生成时间。控制台可以定位到起点、拖动时间条跳转、从起点重播，暂停时保持当前位置。
+
+侧边栏「轨迹来源」有**默认路径**（内置的校园跑走廊，启动时自动载入）和**本地导入**（唤起文件选择器）两个选项。
 
 回放结束后设备位置会**退回轨迹起点并保持**，不会停在最后一个点；要恢复真实定位点「恢复定位」。
 
@@ -47,7 +49,11 @@ Mac 控制台（Swift）
 
 选错的代价是**整条轨迹平移一个基准偏移量**——国内通常数百米，滨州一带约 475 米。轨迹在地图上看着还在操场，实际已落在目标地点几百米之外。
 
+**内置默认轨迹的基准固定为 WGS-84**（它与 `core/assets/campus.geojson` 逐点一致，后者已声明为 WGS-84），不随这个选择改变；选本地导入后才能改基准。
+
 「标定偏移」是另一件事：基准相同但原点不同（服务端围栏按某个参考点标注，轨迹照着另一份地图描的）时，用它把整条轨迹平移到目标位置，单位是米（东/北）。
+
+归一化与偏移的顺序不能反：基准转换是非线性变换，必须先做；标定偏移是米制平移，必须在经纬度空间做。单圈中线也在归一化之后才拟合，否则会与点集错开一个基准。
 
 判断基准与计算偏移：
 
@@ -58,7 +64,7 @@ python3 tools/coordinate_probe.py 轨迹.kmz --target 37.387769,117.982438  # �
 
 ## 快速开始
 
-1. 下载 `UnReal-Console-0.2.0-macos-arm64.zip`，把 `UnReal Console.app` 拖进「应用程序」；装好 [uv](https://docs.astral.sh/uv/getting-started/installation/)（首次启动设备桥接会用 `uvx` 拉起 Python 3.14 与 pymobiledevice3，需要联网）。
+1. 下载 `NoReal-Console-0.2.0-macos-arm64.zip`，解压后把里面的 `NoReal Console.app` 拖进「应用程序」；装好 [uv](https://docs.astral.sh/uv/getting-started/installation/)（首次启动设备桥接会用 `uvx` 拉起 Python 3.14 与 pymobiledevice3，需要联网）。
 2. 用数据线连 iPhone，解锁并信任 Mac，手机开启[开发者模式](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)。
 3. 控制台里刷新设备列表、选中 iPhone，导入轨迹，点「定位到起点」核对位置，再点「开始回放」。
 4. 结束点「恢复定位」，否则手机会停在最后一个坐标上。
@@ -70,7 +76,7 @@ python3 tools/coordinate_probe.py 轨迹.kmz --target 37.387769,117.982438  # �
 ```
 macos/    Swift 控制台 + Python 设备桥接 + Swift/Python 测试
 core/     平台无关的轨迹引擎（Kotlin/JVM）、轨迹样本与校园路网数据
-tools/    坐标基准诊断脚本
+tools/    坐标基准诊断脚本、图标生成
 docs/     iOS 注入原理、macOS 控制台方案
 ```
 
@@ -78,16 +84,18 @@ docs/     iOS 注入原理、macOS 控制台方案
 
 ```bash
 ./macos/build-app.sh                                  # 构建 UnReal Console.app
-swift test --package-path macos                       # Swift 单元测试
+swift test --package-path macos --disable-sandbox     # Swift 单元测试（39 项）
 uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v
 core/checks/run.sh                                    # 轨迹引擎回归检查（需要 JDK + kotlinc）
 ```
 
 `core/checks/run.sh` 校验默认轨迹的 644 点长度与配速换算、反向规划、路网连通性、跨经线插值，并输出 327 个采样点。
 
+受限终端（CI、容器、代理会话）里 SwiftPM 自带的沙箱会因 `sandbox_apply` 失败，`build-app.sh` 检测到会自动退回 `--disable-sandbox` 重试。
+
 ## 轨迹引擎
 
-`core/kotlin/com/noreal/core/` 是与平台无关的参考实现（纯 Kotlin，无 Android 依赖），macOS 端的 `Route.swift` / `KMLRoute.swift` / `LoopRoute.swift` 与它保持同一套采样语义：
+`core/kotlin/com/unreal/core/` 是与平台无关的参考实现（纯 Kotlin，无 Android 依赖），macOS 端的 `Route.swift` / `KMLRoute.swift` / `LoopRoute.swift` 与它保持同一套采样语义：
 
 - `Route.sample(elapsedSeconds, durationSeconds)`：按秒采样，多圈循环时首尾相接。
 - `GpxWriter.build(route, options)`：把轨迹展开成合规 GPX——1 秒一点、时间戳单调递增、超过 20000 点自动降采样，供 iOS 开发者服务或 SDR 消费端回放。
@@ -99,6 +107,14 @@ core/checks/run.sh                                    # 轨迹引擎回归检查
 `core/assets/campus.geojson` 是 WGS‑84 的 GeoJSON FeatureCollection，每条 LineString 代表一条双向步行边，需要连通的路口必须作为各相关道路的端点，并共享完全相同的坐标。更新数据包时应同时核对端点、拓扑和现场通行情况。
 
 当前路网只有一条 644 点的走廊，多路口的连通与换乘只被合成图用例覆盖，接入真实网状数据前需要重新核对。
+
+## 版本号
+
+版本号存在仓库根的 `VERSION` 文件里（格式 `2.0.18`）。**每次构建自动 +0.0.01 并写回**，构建出来的包用的是递增前的版本号，所以界面上显示的版本与安装包始终一致。
+
+界面左上角产品名右侧显示当前版本（`V2.0.18`）。要指定版本，改 `VERSION` 文件即可。
+
+图标由 `tools/icon/make_icon.swift` 生成（白底黑色定位针），构建时自动合成 `.icns` 打进包里。
 
 ## 已知限制
 
