@@ -11,6 +11,7 @@ import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.OpenableColumns
 import android.provider.Settings
 import android.text.Editable
@@ -69,6 +70,7 @@ class MainActivity : Activity() {
     private var playbackElapsed = 0.0
     private var duration = 0.0
     private var laps = 1
+    private var holdingLocation = false
     private var lastProgress = -1
     private var lastReadoutSecond = -1L
     private var lastFrame = 0L
@@ -162,6 +164,11 @@ class MainActivity : Activity() {
     override fun onStart() {
         super.onStart()
         paneVisible = true
+        val holding = MockLocationOutput.isHolding(this)
+        if (holding != holdingLocation) {
+            holdingLocation = holding
+            renderPage()
+        }
         drawState(force = true)
         requestFrames()
         offerDraft()
@@ -194,6 +201,17 @@ class MainActivity : Activity() {
     private fun renderPage() {
         navigation.forEachIndexed { index, view -> decorate(view, Page.entries[index] == page) }
         body.removeAllViews()
+        if (holdingLocation) {
+            val notice = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(12), dp(8), dp(8), dp(8))
+                background = surface(PANEL, OUTLINE, 12)
+            }
+            notice.addView(text("定位仍停在终点", 13, TEXT), LinearLayout.LayoutParams(0, -2, 1f))
+            notice.addView(button("恢复真实定位") { recoverLocation() })
+            body.addView(notice, margins(bottom = 10))
+        }
         val top = row()
         val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         title = text("", 21, TEXT, bold = true)
@@ -362,6 +380,12 @@ class MainActivity : Activity() {
             ),
             margins(top = 6)
         )
+        if (!batteryExempt()) {
+            controls.addView(
+                button("允许后台运行 · 锁屏后继续模拟") { requestBatteryExemption() },
+                margins(top = 6)
+            )
+        }
     }
 
     private fun renderRecordingControls() {
@@ -507,6 +531,28 @@ class MainActivity : Activity() {
         if (serviceState is SessionState.Mock) sessionCommand(LocationSessionService.STOP)
     }
 
+    /** 模拟结束后位置还停在终点，这里把它清掉，回到真实定位。 */
+    private fun recoverLocation() {
+        val clean = runCatching { MockLocationOutput(this).restorePending() }.getOrDefault(false)
+        holdingLocation = false
+        renderPage()
+        toast(if (clean) "已恢复真实定位" else "清理未完成，请检查模拟位置授权")
+    }
+
+    private fun batteryExempt(): Boolean =
+        getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
+    private fun requestBatteryExemption() {
+        runCatching {
+            startActivity(
+                Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))
+            )
+        }.onFailure {
+            runCatching { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+                .onFailure { toast("请到设置 → 电池 → 应用耗电管理里允许 NoReal 后台运行") }
+        }
+    }
+
     private fun askLocation(action: String) {
         if (!hasFineLocation()) {
             requestingPermission = action
@@ -584,12 +630,18 @@ class MainActivity : Activity() {
             is SessionState.Idle -> {
                 if (previous is SessionState.Mock) {
                     val total = previous.totalDuration
-                    val elapsed = if (next.message == "模拟完成。") total else previous.clock.read()
+                    val elapsed = if (next.message.startsWith("模拟完成")) total else previous.clock.read()
                     playbackElapsed = elapsed.coerceIn(0.0, total)
                 }
                 if (previous !is SessionState.Idle) renderControls()
                 if (next.message.isNotBlank()) toast(next.message)
                 offerDraft()
+                val holding = MockLocationOutput.isHolding(this)
+                if (holding != holdingLocation) {
+                    holdingLocation = holding
+                    renderPage()
+                    return
+                }
             }
         }
         drawState(force = true)

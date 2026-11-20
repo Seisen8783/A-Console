@@ -282,7 +282,7 @@ internal class LocationSessionService : Service() {
             return
         }
         if (terminalFrame) {
-            finish("模拟完成。", preserveDraft = false)
+            finish("模拟完成", preserveDraft = false, keepLocation = true)
             return
         }
         val now = SystemClock.elapsedRealtimeNanos()
@@ -343,17 +343,49 @@ internal class LocationSessionService : Service() {
         SessionEvents.publish(next)
     }
 
-    private fun finish(message: String, preserveDraft: Boolean) {
+    private fun finish(message: String, preserveDraft: Boolean, keepLocation: Boolean = false) {
         handler.removeCallbacks(pulse)
         val recording = state as? SessionState.Recording
         stopFixes()
-        val clean = runCatching { output.restorePending() }.getOrDefault(false)
+        val clean = runCatching {
+            if (keepLocation) output.markHeld() else output.restorePending()
+        }.getOrDefault(false)
         releaseWakeLock()
-        val status = if (!clean) "模拟定位清理待处理。请检查开发者选项中的授权。" else message
+        val status = when {
+            !clean -> "模拟定位清理待处理。请检查开发者选项中的授权。"
+            keepLocation -> "$message，定位已保留在终点。"
+            else -> message
+        }
         val draftToOffer = if (!preserveDraft) recording?.draftId else null
         update(SessionState.Idle(status, draftToOffer))
         stopForeground(STOP_FOREGROUND_REMOVE)
+        if (keepLocation) notifyFinished()
         stopSelf()
+    }
+
+    /** 跑完轨迹后弹一条普通通知，位置保持不动。 */
+    private fun notifyFinished() {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_DONE, "模拟完成提醒", NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val open = PendingIntent.getActivity(this, 102, Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }, pendingFlags)
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL_DONE)
+            else Notification.Builder(this)
+        val notification = builder
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentTitle("NoReal · 模拟完成")
+            .setContentText("定位停在终点，未恢复真实位置")
+            .setStyle(Notification.BigTextStyle().bigText("轨迹已跑完，系统定位仍停在终点。打开应用可恢复真实定位。"))
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        runCatching { manager.notify(NOTIFICATION_DONE_ID, notification) }
     }
 
     private fun releaseWakeLock() {
@@ -390,7 +422,9 @@ internal class LocationSessionService : Service() {
         const val RESUME = "resume"
         const val STOP = "stop"
         private const val CHANNEL = "location-session"
+        private const val CHANNEL_DONE = "location-done"
         private const val NOTIFICATION_ID = 10
+        private const val NOTIFICATION_DONE_ID = 11
         private const val GAP_NANOS = 15_000_000_000L
     }
 }

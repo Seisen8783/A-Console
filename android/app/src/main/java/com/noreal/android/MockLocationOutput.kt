@@ -104,7 +104,14 @@ internal class MockLocationOutput(private val context: Context) {
     fun restorePending(): Boolean {
         pendingProviders().forEach(::clearProvider)
         if (preferences.getBoolean(KEY_FUSED, false)) clearFused()
+        preferences.edit().remove(KEY_HOLDING).commit()
         return !hasPending(context)
+    }
+
+    /** 模拟正常结束：保留已注册的测试定位源，让定位停在最后一点。 */
+    fun markHeld(): Boolean {
+        preferences.edit().putBoolean(KEY_HOLDING, true).commit()
+        return pendingProviders().isNotEmpty() || preferences.getBoolean(KEY_FUSED, false)
     }
 
     private fun clearProvider(name: String) {
@@ -130,12 +137,23 @@ internal class MockLocationOutput(private val context: Context) {
     companion object {
         private const val KEY_PROVIDERS = "providers"
         private const val KEY_FUSED = "fused"
+        private const val KEY_HOLDING = "holding"
 
+        /**
+         * 是否还有需要清理的残留。被标记为 holding 的是正常结束后主动保留的，
+         * 不算残留，启动时不应该自动清掉。
+         */
         fun hasPending(context: Context): Boolean {
             val preferences = context.getSharedPreferences("location_output", Context.MODE_PRIVATE)
+            if (preferences.getBoolean(KEY_HOLDING, false)) return false
             return preferences.getStringSet(KEY_PROVIDERS, emptySet())?.isNotEmpty() == true ||
                 preferences.getBoolean(KEY_FUSED, false)
         }
+
+        /** 上次模拟结束后是否仍把定位保持在终点。 */
+        fun isHolding(context: Context): Boolean =
+            context.getSharedPreferences("location_output", Context.MODE_PRIVATE)
+                .getBoolean(KEY_HOLDING, false)
 
         @Suppress("DEPRECATION")
         fun allowed(context: Context): Boolean {
