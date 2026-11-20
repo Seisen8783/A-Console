@@ -50,7 +50,7 @@ adb shell dumpsys location | grep "last location=Location\[gps"
 
 这套方案是手机本地运行的：坐标流只走回环地址，不出设备，也不需要外部网络。
 
-详见 [`docs/LocBridge-方案.md`](docs/LocBridge-方案.md)，里面写了协议、安装步骤、验证方法和风险。
+详见 [`docs/NoReal-定位接管技术总览.md`](docs/NoReal-定位接管技术总览.md)，里面写了原理、协议、微信定位链路的五层分析、卡点、实测记录、落地路径与踩坑清单。
 
 ### 兼容层与鸿蒙
 
