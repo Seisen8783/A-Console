@@ -26,6 +26,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import com.noreal.core.CampusRouter
@@ -71,6 +72,7 @@ class MainActivity : Activity() {
     private var duration = 0.0
     private var laps = 1
     private var holdingLocation = false
+    private var pendingStart = false
     private var lastProgress = -1
     private var lastReadoutSecond = -1L
     private var lastFrame = 0L
@@ -223,7 +225,7 @@ class MainActivity : Activity() {
         top.addView(recenter)
         body.addView(top)
         map = TrackMapView(this)
-        val mapHeight = if (page == Page.PLAYBACK) dp(232) else dp(300)
+        val mapHeight = if (page == Page.PLAYBACK) dp(198) else dp(300)
         body.addView(map, LinearLayout.LayoutParams(-1, mapHeight).apply { topMargin = dp(10) })
         status = text("", 15, TEXT, bold = true)
         status.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -282,14 +284,15 @@ class MainActivity : Activity() {
 
     private fun renderPlaybackControls() {
         val active = serviceState as? SessionState.Mock
-        val interaction = row()
-        if (active != null) {
+        val holdActive = active?.hold == true
+        val trackActive = active != null && !active.hold
+
+        if (trackActive && active != null) {
+            val interaction = row()
             val moving = active.clock.running
-            if (!active.hold) {
-                interaction.addView(button(if (moving) "暂停" else "继续", accent = true) {
-                    sessionCommand(if (moving) LocationSessionService.PAUSE else LocationSessionService.RESUME)
-                }, weighted())
-            }
+            interaction.addView(button(if (moving) "暂停" else "继续", accent = true) {
+                sessionCommand(if (moving) LocationSessionService.PAUSE else LocationSessionService.RESUME)
+            }, weighted())
             interaction.addView(button("停止") { stopPlayback() }, weighted())
             controls.addView(interaction)
             val sources = active.sources.joinToString("、").ifEmpty { "GPS" }
@@ -297,80 +300,99 @@ class MainActivity : Activity() {
             return
         }
 
-        val assetsRow = row().apply {
-            addView(button("导入文件") { openPicker() }, weighted())
-            addView(button("轨迹库") { showLibrary() }, weighted())
-            addView(button("默认轨迹") { chosenDefault?.let { setRoute(it, "校园跑") } }, weighted())
-        }
-        controls.addView(assetsRow)
-        val modeRow = row().apply {
-            addView(button("按配速设置", editingPace) {
-                currentPace()?.let { pace = it }
-                editingPace = true
-                renderControls()
-            }, weighted())
-            addView(button("按用时设置", !editingPace) {
-                currentPace()?.let { pace = it }
-                editingPace = false
-                renderControls()
-            }, weighted())
-        }
-        controls.addView(modeRow, margins(top = 6))
-        val config = row().apply { gravity = Gravity.CENTER_VERTICAL }
-        timeInput = EditText(this).apply {
-            inputType = android.text.InputType.TYPE_CLASS_DATETIME or android.text.InputType.TYPE_DATETIME_VARIATION_TIME
-            isSingleLine = true
-            setTextColor(TEXT)
-            setHintTextColor(MUTED)
-            setTextSize(19f)
-            setPadding(dp(9), 0, dp(9), 0)
-            background = surface(PANEL, OUTLINE, 10)
-            hint = if (editingPace) "分:秒" else "总用时"
-            contentDescription = if (editingPace) "配速，分每公里" else "总完成用时"
-            val lapSeconds = selected?.durationSeconds(pace) ?: 0.0
-            setText(if (editingPace) timeText(pace) else timeText(lapSeconds * laps))
-            addTextChangedListener(object : TextWatcher {
-                override fun afterTextChanged(editable: Editable?) = describeConfig()
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
-            })
-        }
-        config.addView(timeInput, LinearLayout.LayoutParams(dp(106), dp(45)).apply { marginStart = dp(3); marginEnd = dp(10) })
-        resultText = text("", 13, MUTED)
-        config.addView(resultText, LinearLayout.LayoutParams(0, -2, 1f))
-        controls.addView(config, margins(top = 8, bottom = 6))
-
-        val lapRow = row().apply { gravity = Gravity.CENTER_VERTICAL }
-        lapRow.addView(text("圈数", 13, MUTED), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(3) })
-        lapRow.addView(button("−") { changeLaps(-1) }, LinearLayout.LayoutParams(dp(46), dp(38)).apply { marginStart = dp(8) })
-        lapRow.addView(text(laps.toString(), 18, TEXT, bold = true), LinearLayout.LayoutParams(dp(48), -2).apply {
-            gravity = Gravity.CENTER
-        })
-        lapRow.addView(button("+") { changeLaps(1) }, LinearLayout.LayoutParams(dp(46), dp(38)))
-        val route = selected
-        val summary = if (route == null || laps <= 1) "" else {
-            "总计 ${formatDistance(route.lengthMeters * laps)}"
-        }
-        lapRow.addView(text(summary, 12, MUTED), LinearLayout.LayoutParams(0, -2, 1f).apply {
-            gravity = Gravity.END
-            marginEnd = dp(3)
-        })
-        controls.addView(lapRow, margins(top = 2))
-        if (route != null && laps > 1) {
-            val gap = closingGap(route)
-            if (gap > 30.0) {
-                controls.addView(
-                    text("轨迹首尾相差 ${formatDistance(gap)}，循环时会从终点跳回起点", 12, Palette.warning),
-                    margins(top = 4)
-                )
+        if (!holdActive) {
+            val assetsRow = row().apply {
+                addView(button("导入文件") { openPicker() }, weighted())
+                addView(button("轨迹库") { showLibrary() }, weighted())
+                addView(button("默认轨迹") { chosenDefault?.let { setRoute(it, "校园跑") } }, weighted())
             }
+            controls.addView(assetsRow)
+            val modeRow = row().apply {
+                addView(button("按配速设置", editingPace) {
+                    currentPace()?.let { pace = it }
+                    editingPace = true
+                    renderControls()
+                }, weighted())
+                addView(button("按用时设置", !editingPace) {
+                    currentPace()?.let { pace = it }
+                    editingPace = false
+                    renderControls()
+                }, weighted())
+            }
+            controls.addView(modeRow, margins(top = 6))
+            val config = row().apply { gravity = Gravity.CENTER_VERTICAL }
+            timeInput = EditText(this).apply {
+                inputType = android.text.InputType.TYPE_CLASS_DATETIME or android.text.InputType.TYPE_DATETIME_VARIATION_TIME
+                isSingleLine = true
+                setTextColor(TEXT)
+                setHintTextColor(MUTED)
+                setTextSize(19f)
+                setPadding(dp(9), 0, dp(9), 0)
+                background = surface(PANEL, OUTLINE, 10)
+                hint = if (editingPace) "分:秒" else "总用时"
+                contentDescription = if (editingPace) "配速，分每公里" else "总完成用时"
+                val lapSeconds = selected?.durationSeconds(pace) ?: 0.0
+                setText(if (editingPace) timeText(pace) else timeText(lapSeconds * laps))
+                addTextChangedListener(object : TextWatcher {
+                    override fun afterTextChanged(editable: Editable?) = describeConfig()
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                })
+            }
+            config.addView(timeInput, LinearLayout.LayoutParams(dp(106), dp(45)).apply { marginStart = dp(3); marginEnd = dp(10) })
+            resultText = text("", 13, MUTED)
+            config.addView(resultText, LinearLayout.LayoutParams(0, -2, 1f))
+            controls.addView(config, margins(top = 8, bottom = 6))
+
+            val lapRow = row().apply { gravity = Gravity.CENTER_VERTICAL }
+            lapRow.addView(text("圈数", 13, MUTED), LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(3) })
+            lapRow.addView(button("−") { changeLaps(-1) }, LinearLayout.LayoutParams(dp(46), dp(38)).apply { marginStart = dp(8) })
+            lapRow.addView(text(laps.toString(), 18, TEXT, bold = true), LinearLayout.LayoutParams(dp(48), -2).apply {
+                gravity = Gravity.CENTER
+            })
+            lapRow.addView(button("+") { changeLaps(1) }, LinearLayout.LayoutParams(dp(46), dp(38)))
+            val route = selected
+            val summary = if (route == null || laps <= 1) "" else {
+                "总计 ${formatDistance(route.lengthMeters * laps)}"
+            }
+            lapRow.addView(text(summary, 12, MUTED), LinearLayout.LayoutParams(0, -2, 1f).apply {
+                gravity = Gravity.END
+                marginEnd = dp(3)
+            })
+            controls.addView(lapRow, margins(top = 2))
+            if (route != null && laps > 1) {
+                val gap = closingGap(route)
+                if (gap > 30.0) {
+                    controls.addView(
+                        text("轨迹首尾相差 ${formatDistance(gap)}，循环时会从终点跳回起点", 12, Palette.warning),
+                        margins(top = 4)
+                    )
+                }
+            }
+            describeConfig()
         }
-        describeConfig()
-        interaction.addView(button("定位到起点") { startHold() },
-            LinearLayout.LayoutParams(0, dp(48), 1f).apply { marginStart = dp(3); marginEnd = dp(3) })
-        interaction.addView(button("开始系统模拟", accent = true) { startPlayback() },
-            LinearLayout.LayoutParams(0, dp(48), 1.6f).apply { marginStart = dp(3); marginEnd = dp(3) })
-        controls.addView(interaction)
+
+        val switchRow = row().apply { gravity = Gravity.CENTER_VERTICAL }
+        switchRow.addView(
+            text(
+                if (holdActive) "保持在起点 · 已生效" else "保持在起点",
+                13, if (holdActive) TEXT else MUTED
+            ),
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        switchRow.addView(Switch(this).apply {
+            isChecked = holdActive
+            setOnCheckedChangeListener { _, checked ->
+                if (checked) startHold() else stopHold()
+            }
+        })
+        controls.addView(switchRow, margins(top = 8))
+
+        controls.addView(
+            button("开始系统模拟", accent = true) { startPlayback() },
+            LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(8) }
+        )
+
         val allowed = MockLocationOutput.allowed(this)
         controls.addView(
             text(
@@ -471,10 +493,18 @@ class MainActivity : Activity() {
         if (route.points.size < 2) 0.0 else distanceMeters(route.points.first(), route.points.last())
 
     private fun startPlayback() {
+        val running = serviceState
+        if (running is SessionState.Mock && running.hold) {
+            pendingStart = true
+            sessionCommand(LocationSessionService.STOP)
+            return
+        }
         if (busy()) return
         val route = selected ?: run { toast("请先选择轨迹。"); return }
         val value = currentPace() ?: run { toast("请检查配速或完成用时。"); return }
-        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(timeInput.windowToken, 0)
+        if (::timeInput.isInitialized) {
+            getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(timeInput.windowToken, 0)
+        }
         pace = value
         duration = route.durationSeconds(value)
         playbackElapsed = 0.0
@@ -512,14 +542,32 @@ class MainActivity : Activity() {
 
     /** 把定位直接钉在当前轨迹的起点，不跑轨迹。 */
     private fun startHold() {
-        if (busy()) return
-        val route = selected ?: run { toast("请先选择轨迹。"); return }
+        if (busy()) {
+            renderControls()
+            return
+        }
+        val route = selected ?: run {
+            toast("请先选择轨迹。")
+            renderControls()
+            return
+        }
         playbackElapsed = 0.0
         if (!MockLocationOutput.allowed(this)) {
             showMockPermissionDialog { beginHold(route) }
+            renderControls()
             return
         }
         beginHold(route)
+    }
+
+    private fun stopHold() {
+        val current = serviceState
+        if (current is SessionState.Mock && current.hold) {
+            pendingStart = false
+            sessionCommand(LocationSessionService.STOP)
+        } else {
+            renderControls()
+        }
     }
 
     private fun beginHold(route: Route) {
@@ -635,6 +683,11 @@ class MainActivity : Activity() {
                 }
                 if (previous !is SessionState.Idle) renderControls()
                 if (next.message.isNotBlank()) toast(next.message)
+                if (pendingStart) {
+                    pendingStart = false
+                    startPlayback()
+                    return
+                }
                 offerDraft()
                 val holding = MockLocationOutput.isHolding(this)
                 if (holding != holdingLocation) {
