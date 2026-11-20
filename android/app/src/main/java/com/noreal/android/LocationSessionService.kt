@@ -241,7 +241,7 @@ internal class LocationSessionService : Service() {
         val power = getSystemService(PowerManager::class.java)
         wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:hold").apply {
             setReferenceCounted(false)
-            acquire(3_600_000L)
+            acquire(86_400_000L)
         }
         mockEpoch = System.currentTimeMillis()
         mockStart = SystemClock.elapsedRealtimeNanos()
@@ -261,7 +261,9 @@ internal class LocationSessionService : Service() {
         val power = getSystemService(PowerManager::class.java)
         wakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:replay").apply {
             setReferenceCounted(false)
-            acquire(((total + 120.0) * 1000.0).roundToLong().coerceIn(120_000L, 86_400_000L))
+            // 不能按轨迹时长设超时：跑得比预计久（或反复循环）时锁会被自动释放，
+            // CPU 随即休眠，Handler 不再触发，位置就凝固了。统一给 24 小时，由 releaseWakeLock 兜底。
+            acquire(86_400_000L)
         }
         mockEpoch = System.currentTimeMillis()
         mockStart = SystemClock.elapsedRealtimeNanos()
