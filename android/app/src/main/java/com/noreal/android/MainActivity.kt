@@ -340,7 +340,7 @@ class MainActivity : Activity() {
             val gap = closingGap(route)
             if (gap > 30.0) {
                 controls.addView(
-                    text("轨迹首尾相差 ${formatDistance(gap)}，循环时会从终点跳回起点", 12, 0xFFE0A030.toInt()),
+                    text("轨迹首尾相差 ${formatDistance(gap)}，循环时会从终点跳回起点", 12, Palette.warning),
                     margins(top = 4)
                 )
             }
@@ -353,7 +353,7 @@ class MainActivity : Activity() {
             text(
                 if (allowed) "已授权 · 模拟坐标会写入系统定位源，其他应用可直接读取"
                 else "未授权 · 需在开发者选项把 NoReal 设为模拟位置信息应用",
-                12, if (allowed) MUTED else 0xFFE0A030.toInt()
+                12, if (allowed) MUTED else Palette.warning
             ),
             margins(top = 6)
         )
@@ -933,11 +933,11 @@ class MainActivity : Activity() {
         private const val PICK_FILE = 100
         private const val PERMISSION_LOCATION = 101
         private const val PERMISSION_NOTIFICATION = 102
-        private val BACKGROUND = 0xFF101925.toInt()
-        private val PANEL = 0xFF1B2B3B.toInt()
-        private val OUTLINE = 0xFF3B5266.toInt()
-        private val TEXT = 0xFFF1F7FC.toInt()
-        private val MUTED = 0xFFACC0CE.toInt()
-        private val ACCENT = 0xFF67E5C2.toInt()
+        private val BACKGROUND = Palette.background
+        private val PANEL = Palette.panel
+        private val OUTLINE = Palette.outline
+        private val TEXT = Palette.text
+        private val MUTED = Palette.muted
+        private val ACCENT = Palette.accent
     }
 }

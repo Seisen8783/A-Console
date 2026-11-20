@@ -4,6 +4,8 @@ NoReal 把一条轨迹变成手机的系统定位：按配速把轨迹展开成�
 
 只支持 Android（minSdk 24）。HarmonyOS 端已移除——该平台不向第三方应用开放定位注入，`ohos.permission.MOCK_LOCATION` 是 system_basic 级系统权限，SDK 中没有任何公开的写入接口，因此无法实现系统级模拟。
 
+最新构建可在 [Releases](https://github.com/Seisen8783/NoReal/releases) 下载。本工具仅供测试使用。
+
 ## 系统模拟
 
 1. 首次使用会引导打开「开发者选项 → 选择模拟位置信息应用」，选中 NoReal。
