@@ -54,10 +54,19 @@ private struct ConsoleView: View {
                 Label("UnReal", systemImage: "location.circle.fill")
                     .font(.system(size: 27, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.accentColor)
-                Text(AppVersion.current.display)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("版本 \(AppVersion.current.display)")
+                // 版本号可点击，跳到仓库地址。
+                Button {
+                    if let url = URL(string: AppInfo.repositoryURL) {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    Text(AppVersion.current.display)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("打开仓库：\(AppInfo.repositoryURL)")
+                .accessibilityLabel("版本 \(AppVersion.current.display)，点击打开仓库")
             }
 
             VStack(alignment: .leading, spacing: 9) {
@@ -70,9 +79,8 @@ private struct ConsoleView: View {
                         .disabled(model.busy)
                 }
                 if model.devices.isEmpty {
-                    Text("用数据线连接 iPhone，然后解锁并信任此 Mac。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                    // 未连接设备时不显示提示文字，列表区留白。
+                    EmptyView()
                 } else {
                     Picker("iPhone", selection: $model.deviceID) {
                         ForEach(model.devices) { device in
@@ -97,14 +105,9 @@ private struct ConsoleView: View {
                         Text(source.displayName).tag(source)
                     }
                 }
+                .labelsHidden()
                 .disabled(model.busy)
                 .help("默认路径为内置的校园跑走廊；本地导入会打开文件选择器。")
-                if let route = model.route {
-                    Text(route.name)
-                        .font(.callout)
-                        .lineLimit(2)
-                        .help(route.name)
-                }
                 Picker("坐标基准", selection: Binding(get: { model.coordinateSystem },
                                                    set: { model.setCoordinateSystem($0) })) {
                     ForEach(CoordinateSystem.allCases) { system in
@@ -115,6 +118,14 @@ private struct ConsoleView: View {
                 .help(model.trackSource == .bundled
                       ? "内置默认轨迹的基准固定为 WGS-84。导入自己的轨迹后才能选择基准。"
                       : "轨迹文件使用的坐标系。设备只接受 WGS-84，选错会导致位置整体偏移。")
+                Picker("上报口径", selection: Binding(get: { model.reportAlignment },
+                                                  set: { model.setReportAlignment($0) })) {
+                    ForEach(ReportAlignment.allCases) { alignment in
+                        Text(alignment.displayName).tag(alignment)
+                    }
+                }
+                .disabled(!model.canEditSettings)
+                .help(model.reportAlignment.help)
                 calibrationFields
                 if model.route?.untimedSegments != nil {
                     HStack {

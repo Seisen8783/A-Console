@@ -36,6 +36,7 @@ final class ConsoleModel: ObservableObject {
     @Published var lengthMode: LengthMode = .laps
     @Published var targetKilometers: String = ""
     @Published var coordinateSystem: CoordinateSystem = .gcj02
+    @Published var reportAlignment: ReportAlignment = .asIs
     @Published var calibration = CalibrationOffset.zero
     @Published var trackSource: TrackSource = .bundled
     @Published private(set) var timeline: [TrackPoint] = []
@@ -210,6 +211,8 @@ final class ConsoleModel: ObservableObject {
             return
         }
         trackSource = .bundled
+        // 内置轨迹是给「校园跑」这个小程序用的，按它的上报口径预置。
+        reportAlignment = .pullBackOneDatum
         load(url)
         status = "已载入默认轨迹"
     }
@@ -251,8 +254,14 @@ final class ConsoleModel: ObservableObject {
         rebuildRoute()
     }
 
-    /// 切换长度计量方式（圈数 ↔ 公里数）。
-    ///
+    /// 切换上报口径（原样 ↔ 回退一个基准）。
+    func setReportAlignment(_ alignment: ReportAlignment) {
+        guard canEditSettings, alignment != reportAlignment else { return }
+        reportAlignment = alignment
+        rebuildRoute()
+    }
+
+    /// 切换长度计量方式（圈数 ↔ 公里数）。    ///
     /// 切到公里数时，若输入框还是空的，按当前总长度自动填一个值，
     /// 免得用户面对空框不知道该填多少。
     func setLengthMode(_ mode: LengthMode) {
@@ -301,6 +310,10 @@ final class ConsoleModel: ObservableObject {
         // 先归一化坐标基准，再套用标定偏移。顺序不能反：
         // 偏移是米制平移，必须在经纬度空间做；基准转换是非线性变换，必须先做。
         source = system.normalized(route: source)
+        // 「回退一个基准」：再做一次 GCJ-02 反解，让微信转回来正好等于文件原值。
+        if reportAlignment == .pullBackOneDatum {
+            source = CoordinateSystem.gcj02.normalized(route: source)
+        }
         let shiftedPoints: [TrackPoint] = calibration.apply(to: source.points)
         let shiftedSegments: [[TrackPoint]]? = source.untimedSegments.map { segments in
             segments.map { calibration.apply(to: $0) }
