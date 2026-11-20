@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import NoRealConsole
+@testable import UnRealConsole
 
 final class KMLRouteTests: XCTestCase {
     func testRepositoryKMZWithLocalizedEntry() throws {

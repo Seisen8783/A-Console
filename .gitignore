@@ -14,4 +14,5 @@ android/
 harmony/
 tools/autotest/
 tools/emu-track.sh
-docs/NoReal-定位接管技术总览.md
+docs/UnReal-定位接管技术总览.md
+tools/icon/build/

@@ -7,7 +7,7 @@ struct ConsoleApp: App {
     @NSApplicationDelegateAdaptor(ConsoleDelegate.self) private var delegate
 
     var body: some Scene {
-        Window("NoReal 控制台", id: "console") {
+        Window("UnReal Console", id: "console") {
             ConsoleView(model: .shared)
                 .frame(minWidth: 780, minHeight: 510)
         }
@@ -47,9 +47,15 @@ private struct ConsoleView: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Label("NoReal", systemImage: "location.circle.fill")
-                .font(.system(size: 27, weight: .semibold, design: .rounded))
-                .foregroundStyle(Color.accentColor)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label("UnReal", systemImage: "location.circle.fill")
+                    .font(.system(size: 27, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.accentColor)
+                Text(AppVersion.current.display)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("版本 \(AppVersion.current.display)")
+            }
 
             VStack(alignment: .leading, spacing: 9) {
                 HStack {
@@ -91,6 +97,15 @@ private struct ConsoleView: View {
                         .lineLimit(2)
                         .help(route.name)
                 }
+                Picker("坐标基准", selection: Binding(get: { model.coordinateSystem },
+                                                   set: { model.setCoordinateSystem($0) })) {
+                    ForEach(CoordinateSystem.allCases) { system in
+                        Text(system.displayName).tag(system)
+                    }
+                }
+                .disabled(!model.canEditSettings)
+                .help("轨迹文件使用的坐标系。设备只接受 WGS-84，选错会导致位置整体偏移。")
+                calibrationFields
                 if model.route?.untimedSegments != nil {
                     HStack {
                         Text("回放配速")
@@ -134,6 +149,7 @@ private struct ConsoleView: View {
                         }
                     }
                 }
+                kilometerField
                 if model.paused && model.settingsChanged && !model.invalidPace &&
                     model.lapCount != nil && !model.lapBelowCurrent && !model.lapLimitExceeded {
                     Text("继续回放时应用新设置")
@@ -152,14 +168,112 @@ private struct ConsoleView: View {
                     .foregroundStyle(.orange)
             }
             Button { model.locateStart() } label: { Label("定位到起点", systemImage: "mappin.circle") }
+                .buttonStyle(.borderedProminent)
+                .foregroundStyle(.white)
                 .disabled(!model.canAnchor)
             Button { model.restore() } label: { Label("恢复定位", systemImage: "location.slash") }
+                .buttonStyle(.borderedProminent)
+                .foregroundStyle(.white)
                 .disabled(!model.canRestore)
         }
         .padding(22)
         .frame(width: 255)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(.regularMaterial)
+    }
+
+    /// 米数进度：已模拟 / 本次总计。
+    ///
+    /// 格式按距离大小自适应：
+    /// - 一千米以内：`111.2m/400.0m`
+    /// - 超过一千米：`1.23km/1.50km`
+    private var meterProgress: some View {
+        Text("\(formatMeters(model.simulatedMeters))/\(formatMeters(model.totalMeters))")
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("已模拟 \(formatMeters(model.simulatedMeters))，总计 \(formatMeters(model.totalMeters))")
+    }
+
+    /// 米数的显示格式。千米以下保留一位小数，更长的用公里。
+    private func formatMeters(_ meters: Double) -> String {
+        guard meters.isFinite, meters >= 0 else { return "0m" }
+        if meters < 1000 {
+            return String(format: "%.1fm", meters)
+        }
+        return String(format: "%.2fkm", meters / 1000)
+    }
+
+    /// 目标公里数。填了就按公里数走，忽略圈数。
+    private var kilometerField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("公里数")
+                TextField("如 1.50", text: Binding(get: { model.targetKilometers },
+                                                set: { model.setTargetKilometers($0) }))
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+                    .frame(width: 72)
+                    .accessibilityLabel("目标公里数")
+                    .disabled(!model.canEditSettings)
+                Text("km").foregroundStyle(.secondary)
+            }
+            if model.invalidKilometers {
+                Text("请输入 0 以上的公里数，最多 1000。")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if model.usesKilometers {
+                Text("按 \(String(format: "%.2f", model.targetMeters! / 1000))  公里模拟，忽略总圈数。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var calibrationFields: some View {        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("标定偏移")
+                TextField("东", text: eastBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+                    .frame(width: 62)
+                    .accessibilityLabel("标定偏移东向，米")
+                Text("北")
+                TextField("北", text: northBinding)
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+                    .frame(width: 62)
+                    .accessibilityLabel("标定偏移北向，米")
+            }
+            .disabled(!model.canEditSettings)
+            Text("单位米。用于把轨迹平移到服务端围栏的位置。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var eastBinding: Binding<String> {
+        Binding(get: { format(model.calibration.eastMeters) },
+                set: { value in
+                    model.setCalibration(eastMeters: parse(value) ?? model.calibration.eastMeters,
+                                         northMeters: model.calibration.northMeters)
+                })
+    }
+
+    private var northBinding: Binding<String> {
+        Binding(get: { format(model.calibration.northMeters) },
+                set: { value in
+                    model.setCalibration(eastMeters: model.calibration.eastMeters,
+                                         northMeters: parse(value) ?? model.calibration.northMeters)
+                })
+    }
+
+    private func format(_ value: Double) -> String {
+        value == 0 ? "0" : String(format: "%.1f", value)
+    }
+
+    private func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(trimmed), value.isFinite, abs(value) <= 100_000 else { return nil }
+        return value
     }
 
     private var workspace: some View {
@@ -174,6 +288,7 @@ private struct ConsoleView: View {
                     }
                     Text("\(model.timeline.count) 点")
                     if route.timingIssue == nil { Text(duration(model.totalDuration)) }
+                    meterProgress
                 }
             }
             .monospacedDigit()
@@ -239,12 +354,18 @@ private struct ConsoleView: View {
                     Text(model.status).font(.callout)
                     Spacer()
                     if model.playing && !model.paused {
-                        Button("暂停") { model.pause() }.disabled(model.stopping)
+                        Button("暂停") { model.pause() }
+                            .buttonStyle(.borderedProminent)
+                            .foregroundStyle(.white)
+                            .disabled(model.stopping)
                     }
                     Button("从起点重播") { model.restart() }
+                        .buttonStyle(.borderedProminent)
+                        .foregroundStyle(.white)
                         .disabled(!model.canRestart)
                     Button { model.start() } label: { Label(model.paused && model.hasStarted ? "继续回放" : "开始回放", systemImage: "play.fill") }
                         .buttonStyle(.borderedProminent)
+                        .foregroundStyle(.white)
                         .disabled(!model.canPlay)
                 }
                 if let error = model.error {

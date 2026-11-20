@@ -1,6 +1,6 @@
-# NoReal macOS 定位回放控制台
+# UnReal macOS 定位回放控制台
 
-控制台把现有方案里的 Mac 推送器做成一个可双击打开的桌面应用。把 iPhone 通过 USB 连到 Mac，选择设备和 NoReal 导出的 GPX，即可预览轨迹、开始回放、查看进度和恢复设备定位。
+控制台把现有方案里的 Mac 推送器做成一个可双击打开的桌面应用。把 iPhone 通过 USB 连到 Mac，选择设备和 UnReal 导出的 GPX，即可预览轨迹、开始回放、查看进度和恢复设备定位。
 
 ## 首版界面
 
@@ -15,8 +15,8 @@
 
 | 层 | 实现 |
 | --- | --- |
-| 桌面应用 | SwiftUI + Swift Package Manager，源码放在 `macos/`，构建脚本产出 `NoReal Console.app`。本机先验证 Apple Silicon 构建。 |
-| 轨迹读取 | 读取 NoReal 使用的 `<trk>/<trkseg>/<trkpt>`。检查经纬度、点数和时间顺序，预览与回放使用同一份解析后的点列。 |
+| 桌面应用 | SwiftUI + Swift Package Manager，源码放在 `macos/`，构建脚本产出 `UnReal Console.app`。本机先验证 Apple Silicon 构建。 |
+| 轨迹读取 | 读取 UnReal 使用的 `<trk>/<trkseg>/<trkpt>`。检查经纬度、点数和时间顺序，预览与回放使用同一份解析后的点列。 |
 | 设备桥接 | 固定 `pymobiledevice3 11.61.0`，用 `uv` 管理 Python 环境。应用启动 Python 子进程，通过 JSON Lines 接收设备、进度和错误事件。 |
 | 真机服务 | 通过 USB 枚举设备并按 UDID 建立连接。在用户开始回放时检查信任、开发者模式和 DDI，使用 `PreferredRsdTunnel`、`DvtProvider` 和 `LocationSimulation` 发送坐标。 |
 
@@ -37,7 +37,7 @@
 
 ## 本机使用
 
-1. 在仓库根目录运行 `./macos/build-app.sh`，打开 `macos/build/NoReal Console.app`。桌面端需要 macOS 14 或以上版本以及 `uv`。首次启动设备桥接时，`uv` 可能需要联网准备 Python 3.14 和依赖。
+1. 在仓库根目录运行 `./macos/build-app.sh`，打开 `macos/build/UnReal Console.app`。桌面端需要 macOS 14 或以上版本以及 `uv`。首次启动设备桥接时，`uv` 可能需要联网准备 Python 3.14 和依赖。
 2. 将 `macos/Tests/Fixtures/sample.gpx` 拖入控制台即可离线预览。样例包含 5 个点，时长 20 秒。
 3. 用数据线连接测试 iPhone，确认信任 Mac 与开发者模式，刷新设备列表后选定设备。开始回放后检查对应点位变化。再分别验证播完恢复、暂停续播、手动恢复及拔线重连后的恢复。
 

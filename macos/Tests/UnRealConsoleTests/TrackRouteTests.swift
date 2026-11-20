@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import NoRealConsole
+@testable import UnRealConsole
 
 final class TrackRouteTests: XCTestCase {
     private func load(_ body: String) throws -> TrackRoute {

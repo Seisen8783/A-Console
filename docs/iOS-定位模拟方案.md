@@ -2,7 +2,7 @@
 
 > 记录时间：2026-11-20 19:40
 > 目标设备：iPhone（iOS 17 / 18 / 26+ 均已验证可行）
-> 配套：NoReal 轨迹引擎（负责生成 GPX）
+> 配套：UnReal 轨迹引擎（负责生成 GPX）
 
 ---
 
@@ -162,11 +162,11 @@ tools/ios-track.sh route.gpx        # 起 tunnel → 播放 → Ctrl-C 时自动
 
 ---
 
-## 4. GPX 格式规范（NoReal 要导出的目标格式）
+## 4. GPX 格式规范（UnReal 要导出的目标格式）
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="NoReal"
+<gpx version="1.1" creator="UnReal"
      xmlns="http://www.topografix.com/GPX/1/1">
   <metadata><name>校园跑 · 5:00/km · 2 圈</name></metadata>
   <trk>
@@ -196,7 +196,7 @@ tools/ios-track.sh route.gpx        # 起 tunnel → 播放 → Ctrl-C 时自动
 | 起终点 | 首尾尽量接近（<30 m） | 否则循环处会瞬移 |
 | 点数上限 | 建议 < 20000 | 太多会拖慢回放 |
 
-NoReal 的轨迹引擎已经有 `Route.sample(elapsedSeconds, durationSeconds)`，
+UnReal 的轨迹引擎已经有 `Route.sample(elapsedSeconds, durationSeconds)`，
 按 1 秒步长采样、加上圈数循环，就能直接生成合规 GPX（约 100 行代码）。
 
 ---
@@ -235,7 +235,7 @@ Swift 控制台 + Python 设备桥接（`device_bridge.py`，包 `pymobiledevice
 ### 5.3 一条命令的闭环（未做）
 
 ```bash
-noreal push route.gpx        # NoReal 生成的 GPX 直接推给 iPhone
+noreal push route.gpx        # UnReal 生成的 GPX 直接推给 iPhone
 ```
 
 ---
@@ -313,7 +313,7 @@ pymobiledevice3 developer dvt simulate-location clear
 
 | 阶段 | 内容 | 工作量 |
 | --- | --- | --- |
-| P1 | NoReal 加 GPX 导出（含圈数、配速、校园路网） | 半天 |
+| P1 | UnReal 加 GPX 导出（含圈数、配速、校园路网） | 半天 |
 | P2 | `tools/ios-track.sh`：一条命令起 tunnel + 播放 + 自动 clear | 半天 |
 | P3 | Mac 推送器 GUI（可选，选轨迹/调速度/看进度） | 1 天 |
 | P4 | 轨迹设计器增强：地图上画路线、多段拼接、时间偏移 | 2 天 |
@@ -379,7 +379,7 @@ pymobiledevice3 --udid <UDID> developer dvt simulate-location play route.gpx
 | 成功率 | 中（取决于容器/硬件） | **待验证，但结构上更有利** |
 | 附加成本 | 容器或硬件 ¥100–300 | 0 |
 
-**建议**：先按 §8 花 10 分钟验证 iOS。如果通过，NoReal 的定位从"改系统定位"收敛为
+**建议**：先按 §8 花 10 分钟验证 iOS。如果通过，UnReal 的定位从"改系统定位"收敛为
 「**轨迹设计器 + 多端推送器**」——GPX 一份文件，iPhone（pymobiledevice3）、
 Android 模拟器（geo fix）、SDR（gps-sdr-sim）、BLE GNSS 欺骗器都能消费。
 这一层抽象是复用的，不管底层走哪条路都不浪费。

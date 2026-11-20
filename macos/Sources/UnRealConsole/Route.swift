@@ -22,6 +22,37 @@ struct TrackPoint: Encodable {
     let offset: Double
 }
 
+/// 位置标定偏移（米）。用于把整条轨迹平移到目标位置。
+///
+/// 坐标系转换解决的是「基准不同」，标定偏移解决的是「基准相同但原点不同」——
+/// 比如服务端围栏按某个参考点标注，而轨迹是照着另一份地图描的。
+struct CalibrationOffset: Equatable {
+    /// 东向偏移（米），正数向东。
+    var eastMeters: Double
+    /// 北向偏移（米），正数向北。
+    var northMeters: Double
+
+    static let zero = CalibrationOffset(eastMeters: 0, northMeters: 0)
+
+    var isZero: Bool { abs(eastMeters) < 0.5 && abs(northMeters) < 0.5 }
+
+    /// 把偏移应用到坐标上。
+    func apply(to point: TrackPoint) -> TrackPoint {
+        guard !isZero else { return point }
+        let latitudeScale = 111_195.0
+        let longitudeScale = latitudeScale * cos(point.latitude * .pi / 180)
+        guard longitudeScale > 1 else { return point }
+        return TrackPoint(latitude: point.latitude + northMeters / latitudeScale,
+                          longitude: point.longitude + eastMeters / longitudeScale,
+                          offset: point.offset)
+    }
+
+    func apply(to points: [TrackPoint]) -> [TrackPoint] {
+        guard !isZero else { return points }
+        return points.map { apply(to: $0) }
+    }
+}
+
 struct TrackRoute {
     let name: String
     let points: [TrackPoint]

@@ -1,5 +1,5 @@
 import XCTest
-@testable import NoRealConsole
+@testable import UnRealConsole
 
 final class ReplayTimelineTests: XCTestCase {
     private let route = TrackRoute(

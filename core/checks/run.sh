@@ -6,7 +6,7 @@ temp_dir=$(mktemp -d)
 trap 'rm -rf "$temp_dir"' EXIT
 compiler=${KOTLINC:-kotlinc}
 
-"$compiler" "$core_dir/kotlin/com/noreal/core/RouteCore.kt" "$core_dir/checks/CheckCore.kt" \
+"$compiler" "$core_dir/kotlin/com/unreal/core/RouteCore.kt" "$core_dir/checks/CheckCore.kt" \
   -include-runtime -d "$temp_dir/check.jar"
 java -jar "$temp_dir/check.jar" "$core_dir/assets/default.csv" > "$temp_dir/samples.csv"
 

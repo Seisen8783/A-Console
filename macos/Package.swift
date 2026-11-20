@@ -2,10 +2,16 @@
 import PackageDescription
 
 let package = Package(
-    name: "NoRealConsole",
+    name: "UnRealConsole",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "NoRealConsole", resources: [.copy("Resources/device_bridge.py")]),
-        .testTarget(name: "NoRealConsoleTests", dependencies: ["NoRealConsole"])
+        .executableTarget(
+            name: "UnRealConsole",
+            resources: [
+                .copy("Resources/device_bridge.py"),
+                .copy("Resources/VERSION"),
+            ]
+        ),
+        .testTarget(name: "UnRealConsoleTests", dependencies: ["UnRealConsole"])
     ]
 )

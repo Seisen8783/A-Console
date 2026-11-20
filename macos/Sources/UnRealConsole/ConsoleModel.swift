@@ -33,6 +33,9 @@ final class ConsoleModel: ObservableObject {
     @Published private(set) var loop: LoopRoute?
     @Published private(set) var useCenterline = true
     @Published private(set) var lapsInput = "1"
+    @Published var targetKilometers: String = ""
+    @Published var coordinateSystem: CoordinateSystem = .wgs84
+    @Published var calibration = CalibrationOffset.zero
     @Published private(set) var timeline: [TrackPoint] = []
     @Published private(set) var paused = false
     @Published private(set) var hasStarted = false
@@ -78,6 +81,8 @@ final class ConsoleModel: ObservableObject {
     var canAnchor: Bool { !busy && pendingID == nil && !deviceID.isEmpty && !timeline.isEmpty }
     var canRestore: Bool { playing ? !stopping : !busy && !restoreDeviceID.isEmpty }
     var lapCount: Int? {
+        // 公里数模式优先，此时「圈数」由目标长度决定。
+        if usesKilometers { return 1 }
         guard useCenterline && loop != nil else { return 1 }
         guard let value = Int(lapsInput), (1...99).contains(value) else { return nil }
         return value
@@ -87,6 +92,7 @@ final class ConsoleModel: ObservableObject {
     }
     var lapLimitExceeded: Bool {
         guard let lapCount, let route, lapCount > 1 else { return false }
+        if usesKilometers { return false }
         return route.points.count * lapCount > 200_000
     }
     var totalDuration: Double { timeline.last?.offset ?? 0 }
@@ -106,6 +112,46 @@ final class ConsoleModel: ObservableObject {
     private var canApplySettings: Bool { !invalidPace && lapCount != nil && !lapLimitExceeded && pendingUpdate == nil }
     var invalidPace: Bool { route?.untimedSegments != nil && ReplayPace.parse(paceInput) == nil }
     var restoreDeviceID: String { pendingID ?? deviceID }
+
+    /// 目标公里数（米）。设了它就按公里数走，不再按圈数。
+    var targetMeters: Double? {
+        let trimmed = targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite, value > 0 else { return nil }
+        return (value * 1000).rounded()
+    }
+
+    /// 公里数输入是否非法（非空但解析不出合法正数）。
+    var invalidKilometers: Bool {
+        let trimmed = targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        guard let value = Double(trimmed), value.isFinite else { return true }
+        return value <= 0 || value > 1000
+    }
+
+    /// 当前按公里数模式工作（优先于圈数）。
+    var usesKilometers: Bool { targetMeters != nil }
+
+    /// 单圈中线长度（米），用于展示与换算。
+    var lapMeters: Double {
+        guard let route else { return 0 }
+        return TrackMetrics.length(route.points)
+    }
+
+    /// 本次总计长度（米）：公里数模式下是目标值，否则是圈数 × 单圈。
+    var totalMeters: Double {
+        if let target = targetMeters { return target }
+        return lapMeters * Double(lapCount ?? 1)
+    }
+
+    /// 已模拟的米数（按当前播放位置）。
+    var simulatedMeters: Double {
+        guard !timeline.isEmpty else { return 0 }
+        let index = min(max(0, pointIndex ?? 0), timeline.count - 1)
+        return timelineCumulative[index]
+    }
+
+    /// 时间轴的累计距离，随时间轴重建时更新。
+    private var timelineCumulative: [Double] = []
 
     private init() {
         pendingID = UserDefaults.standard.string(forKey: pendingKey)
@@ -132,6 +178,32 @@ final class ConsoleModel: ObservableObject {
         }
     }
 
+    /// 轨迹文件声明的坐标基准。导入后若改变，需重新归一化。
+    func setCoordinateSystem(_ value: CoordinateSystem) {
+        guard canEditSettings, value != coordinateSystem else { return }
+        coordinateSystem = value
+        rebuildRoute()
+    }
+
+    /// 位置标定偏移（米）。用于把整条轨迹平移到目标位置。
+    func setCalibration(eastMeters: Double, northMeters: Double) {
+        guard canEditSettings else { return }
+        let updated = CalibrationOffset(eastMeters: eastMeters, northMeters: northMeters)
+        guard updated != calibration else { return }
+        calibration = updated
+        rebuildRoute()
+    }
+
+    /// 目标公里数。留空表示按圈数走。
+    func setTargetKilometers(_ text: String) {
+        guard canEditSettings else { return }
+        guard text != targetKilometers else { return }
+        targetKilometers = text
+        // 输入过程中可能暂时非法，此时不重建，等输入合法再说。
+        guard !invalidKilometers else { return }
+        rebuildRoute()
+    }
+
     func setPace(_ text: String) {
         guard canEditSettings, let route, route.untimedSegments != nil else { return }
         paceInput = text
@@ -156,21 +228,80 @@ final class ConsoleModel: ObservableObject {
 
     private func rebuildRoute() {
         guard var source = originalRoute else { return }
-        if useCenterline, let loop { source.untimedSegments = [loop.centerline] }
+        // 先归一化坐标基准，再套用标定偏移。顺序不能反：
+        // 偏移是米制平移，必须在经纬度空间做；基准转换是非线性变换，必须先做。
+        source = coordinateSystem.normalized(route: source)
+        let shiftedPoints: [TrackPoint] = calibration.apply(to: source.points)
+        let shiftedSegments: [[TrackPoint]]? = source.untimedSegments.map { segments in
+            segments.map { calibration.apply(to: $0) }
+        }
+        source = TrackRoute(name: source.name,
+                            points: shiftedPoints,
+                            segmentStarts: source.segmentStarts,
+                            timingIssue: source.timingIssue,
+                            untimedSegments: shiftedSegments)
+        if useCenterline, let fitted = LoopRoute.fit(source) {
+            // 中线必须在归一化之后拟合，否则会与点集错开一个基准。
+            loop = fitted
+            source.untimedSegments = [fitted.centerline]
+        }
         route = KMLRoute.withPace(source, secondsPerKilometer: geometryPace)
+
+        // 公里数模式：把轨迹按目标长度循环延展并截断。
+        if let target = targetMeters, let built = route {
+            route = Self.expand(toMeters: target, route: built,
+                                paceSecondsPerKilometer: Double(geometryPace))
+        }
         rebuildTimeline()
+    }
+
+    /// 按目标长度扩展轨迹：不足则循环拼接，超出则按弧长截断。
+    private static func expand(toMeters target: Double, route: TrackRoute,
+                               paceSecondsPerKilometer: Double) -> TrackRoute? {
+        guard route.points.count > 1 else { return route }
+        let single = TrackMetrics.length(route.points)
+        guard single > 0 else { return route }
+
+        // 未计时分段：按同样的圈数延展。
+        var untimed: [[TrackPoint]]? = nil
+        if let segments = route.untimedSegments {
+            untimed = segments.map {
+                TrackMetrics.expand(toMeters: target, points: $0,
+                                    paceSecondsPerKilometer: paceSecondsPerKilometer)
+            }
+        }
+
+        // 已带时间戳的轨迹：直接按弧长循环。
+        var points = route.points
+        if route.untimedSegments == nil {
+            points = TrackMetrics.expand(toMeters: target, points: points,
+                                         paceSecondsPerKilometer: paceSecondsPerKilometer)
+        }
+
+        return TrackRoute(name: route.name,
+                          points: points,
+                          segmentStarts: [0],
+                          timingIssue: route.timingIssue,
+                          untimedSegments: untimed)
     }
 
     private func rebuildTimeline() {
         pointIndex = nil
         seekIndex = 0
         elapsed = 0
-        guard let route, let laps = lapCount, !route.points.isEmpty, !lapLimitExceeded else {
+        guard let route, !route.points.isEmpty, !lapLimitExceeded else {
+            timeline = []
+            return
+        }
+        // 公里数模式下轨迹已按目标长度扩展，直接跑一遍即可。
+        let laps = usesKilometers ? 1 : (lapCount ?? 1)
+        guard laps > 0 else {
             timeline = []
             return
         }
         timeline = ReplayTimeline.build(route, laps: laps,
                                         scale: Double(appliedPace) / Double(geometryPace))
+        timelineCumulative = TrackMetrics.cumulativeDistances(timeline)
     }
 
     func refresh() { launch(.list) }
@@ -215,6 +346,7 @@ final class ConsoleModel: ObservableObject {
         appliedPace = ReplayPace.parse(paceInput) ?? geometryPace
         timeline = ReplayTimeline.build(route, laps: laps,
                                         scale: Double(appliedPace) / Double(geometryPace))
+        timelineCumulative = TrackMetrics.cumulativeDistances(timeline)
     }
 
     private func continueSession(restarting: Bool) {
@@ -323,7 +455,7 @@ final class ConsoleModel: ObservableObject {
         guard let executable = Self.uvx, let bridge = Bundle.module.url(forResource: "device_bridge",
                                                                  withExtension: "py") else {
             if let file { try? FileManager.default.removeItem(at: file) }
-            error = "找不到 uvx 或设备桥接文件。请安装 uv 后重新打开控制台。"
+            error = "找不到 uvx 或设备桥接文件。请安装 uv 后重新打开 UnReal Console。"
             return
         }
         let task = Process()

@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 sys.dont_write_bytecode = True
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Sources/NoRealConsole/Resources"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Sources/UnRealConsole/Resources"))
 from device_bridge import ReplayCommands, main, operate
 
 
@@ -29,14 +29,18 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
             code = await operate(action, "target", points, stop, connect)
         return code, [json.loads(line) for line in output.getvalue().splitlines()]
 
-    async def test_completion_reports_progress_and_clears(self):
+    async def test_completion_returns_to_start_and_keeps_position(self):
         device = type("Device", (), {"set": AsyncMock(), "clear": AsyncMock()})()
         with patch("device_bridge.wait_for_stop", return_value=False):
             code, events = await self.run_operation(device, asyncio.Event())
         self.assertEqual(code, 0)
-        self.assertEqual([event["index"] for event in events if event["kind"] == "point"], [0, 1])
-        device.clear.assert_awaited_once()
+        # 走完全程后，最后一次写入应是起点坐标。
+        self.assertEqual([event["index"] for event in events if event["kind"] == "point"], [0, 1, 0])
+        self.assertEqual(device.set.await_args_list[-1].args, (37.0, 117.0))
+        # 位置保持在起点，不应恢复真实定位。
+        device.clear.assert_not_awaited()
         self.assertTrue(events[-1]["clean"])
+        self.assertIn("回到起点", events[-1]["message"])
 
     async def test_stop_after_first_write_clears(self):
         stop = asyncio.Event()

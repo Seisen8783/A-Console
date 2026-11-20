@@ -1,4 +1,4 @@
-package com.noreal.core
+package com.unreal.core
 
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -21,7 +21,7 @@ object GpxWriter {
         val paceSecondsPerKm: Double = 360.0,
         val laps: Int = 1,
         val startEpochMillis: Long = System.currentTimeMillis(),
-        val name: String = "NoReal",
+        val name: String = "UnReal",
         /** 轨迹首尾落差超过这个值时标注出来（循环处会跳变）。 */
         val loopGapWarningMeters: Double = 30.0
     )
@@ -42,7 +42,7 @@ object GpxWriter {
 
         val builder = StringBuilder(64 * 1024)
         builder.append("""<?xml version="1.0" encoding="UTF-8"?>""").append('\n')
-        builder.append("""<gpx version="1.1" creator="NoReal" xmlns="http://www.topografix.com/GPX/1/1">""").append('\n')
+        builder.append("""<gpx version="1.1" creator="UnReal" xmlns="http://www.topografix.com/GPX/1/1">""").append('\n')
         builder.append("  <metadata><name>").append(escape(options.name)).append("</name></metadata>\n")
         builder.append("  <trk><name>").append(escape(options.name)).append("</name><trkseg>\n")
 

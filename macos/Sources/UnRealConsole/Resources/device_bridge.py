@@ -1,4 +1,4 @@
-"""USB device and DVT operations for the NoReal desktop console."""
+"""USB device and DVT operations for the UnReal desktop console."""
 
 import argparse
 import asyncio
@@ -177,6 +177,8 @@ async def replay(location, points, stop, on_write, commands=None, initial_index=
                 if stop.is_set() or commands.changed.is_set():
                     continue
         if at_end:
+            # 自然结束：把设备位置退回起点并保持，不恢复真实定位。
+            await return_to_start(location, points, on_write)
             return False
 
         point = points[index]
@@ -193,9 +195,25 @@ async def replay(location, points, stop, on_write, commands=None, initial_index=
     return True
 
 
+async def return_to_start(location, points, on_write):
+    """回放结束后把位置写回轨迹起点，并保持在该位置。"""
+    if not points:
+        return
+    origin = points[0]
+    try:
+        on_write()
+        await asyncio.wait_for(location.set(origin["latitude"], origin["longitude"]), 10)
+        emit("point", index=0, elapsed=0)
+        emit("mode", paused=True, message="回放结束，已回到起点")
+    except (asyncio.TimeoutError, OSError):
+        # 写回起点失败不阻断流程，随后仍会恢复真实定位。
+        pass
+
+
 async def operate(action, serial, points, stop, connect=location_session, commands=None, initial_index=0):
     pending = action == "restore"
     stopped = False
+    keep_position = False
 
     def mark_write():
         nonlocal pending
@@ -214,8 +232,10 @@ async def operate(action, serial, points, stop, connect=location_session, comman
                         emit("mode", paused=False, message="正在回放")
                     stopped = await replay(location, points, stop, mark_write, commands,
                                            initial_index, anchor=action == "anchor")
+                    # 自然结束（未中止）时，位置已退回起点，保持不动，不恢复真实定位。
+                    keep_position = not stopped
             finally:
-                if pending:
+                if pending and not keep_position:
                     emit("state", message="正在发送恢复定位请求")
                     await asyncio.wait_for(location.clear(), 8)
                     pending = False
@@ -226,6 +246,8 @@ async def operate(action, serial, points, stop, connect=location_session, comman
 
     if action == "restore":
         message = "恢复请求已发送"
+    elif keep_position:
+        message = "回放完成，位置已回到起点"
     elif stopped:
         message = "已结束模拟，恢复请求已发送"
     else:
