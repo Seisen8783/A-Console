@@ -92,10 +92,15 @@ internal class LocationSessionService : Service() {
             START_RECORD, START_MOCK, START_HOLD -> {
                 val mockRequest = if (intent.action == START_MOCK) SessionEvents.mockRequest else null
                 val holdRequest = if (intent.action == START_HOLD) SessionEvents.holdRequest else null
+                val interceptRequest = if (intent.action == START_MOCK) SessionEvents.interceptRequest else null
                 SessionEvents.mockRequest = null
                 SessionEvents.holdRequest = null
+                SessionEvents.interceptRequest = null
                 try {
-                    promote(intent.action.orEmpty(), mockRequest?.intercept == true)
+                    promote(
+                        intent.action.orEmpty(),
+                        mockRequest?.intercept == true || interceptRequest != null
+                    )
                 } catch (_: SecurityException) {
                     SessionEvents.publish(SessionState.Idle("请先授予精确定位权限。"))
                     stopSelf(startId)
@@ -111,8 +116,9 @@ internal class LocationSessionService : Service() {
                                 beginHold(holdRequest)
                             }
                             else -> {
-                                checkNotNull(mockRequest) { "请选择要回放的轨迹。" }
-                                beginMock(mockRequest.route, mockRequest.duration, mockRequest.laps, mockRequest.intercept)
+                                val request = mockRequest ?: interceptRequest?.let { buildInterceptRequest(it) }
+                                checkNotNull(request) { "请选择要回放的轨迹。" }
+                                beginMock(request.route, request.duration, request.laps, request.intercept)
                             }
                         }
                     }.onFailure { finish(errorMessage(it), preserveDraft = true) }
@@ -251,6 +257,18 @@ internal class LocationSessionService : Service() {
             output.activeSources, 1, hold = true)
         update(holding)
         publishMock(holding, first = true)
+    }
+
+    /** 自动化测试入口：用内置默认轨迹构造一个接管模式的回放请求。 */
+    private fun buildInterceptRequest(request: InterceptRequest): MockRequest {
+        val route = assets.open("default.kmz").use { TrackFiles.read(this, it).first() }
+        val pace = request.pace.takeIf { it > 0.0 } ?: DebugReceiver.DEFAULT_PACE
+        return MockRequest(
+            route,
+            route.durationSeconds(pace),
+            request.laps.coerceAtLeast(1),
+            intercept = true
+        )
     }
 
     private fun beginMock(route: com.noreal.core.Route, duration: Double, laps: Int, intercept: Boolean) {

@@ -45,7 +45,16 @@ internal class BridgeProvider : ContentProvider() {
     override fun insert(uri: Uri, values: ContentValues?): Uri? {
         val preferences = context?.getSharedPreferences(STORE, Context.MODE_PRIVATE) ?: return null
         val editor = preferences.edit()
-        values?.getAsString(KEY_TARGETS)?.let { editor.putString(KEY_TARGETS, it) }
+        values?.getAsString(KEY_TARGETS)?.let { incoming ->
+            // 取并集：探针 App 可以把自己加进来，不会覆盖用户在模块界面里配好的目标。
+            val merged = (preferences.getString(KEY_TARGETS, "") ?: "")
+                .split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .toMutableSet()
+            incoming.split(",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { merged.add(it) }
+            editor.putString(KEY_TARGETS, merged.joinToString(","))
+        }
         values?.getAsInteger(KEY_PORT)?.let { editor.putInt(KEY_PORT, it) }
         values?.getAsString(KEY_STATUS)?.let {
             editor.putString(KEY_STATUS, it)

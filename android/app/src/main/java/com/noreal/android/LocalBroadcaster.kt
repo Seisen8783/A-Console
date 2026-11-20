@@ -45,9 +45,11 @@ internal class LocalBroadcaster(private val port: Int = DEFAULT_PORT) {
                 isDaemon = true
                 start()
             }
+            android.util.Log.i(TAG, "坐标广播已启动：$LOOPBACK:$port")
             true
         }.getOrElse {
             lastError = it.message ?: "无法监听 $LOOPBACK:$port"
+            android.util.Log.e(TAG, "坐标广播启动失败：$lastError", it)
             false
         }
     }
@@ -113,6 +115,7 @@ internal class LocalBroadcaster(private val port: Int = DEFAULT_PORT) {
     }
 
     companion object {
+        private const val TAG = "NoReal"
         const val DEFAULT_PORT = 38765
         private const val LOOPBACK = "127.0.0.1"
     }

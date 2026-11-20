@@ -62,6 +62,9 @@ internal data class MockRequest(
     val intercept: Boolean = false
 )
 
+/** 自动化测试用的接管模式请求：只给配速与圈数，轨迹用内置默认轨迹。 */
+internal data class InterceptRequest(val pace: Double, val laps: Int = 1, val track: String? = null)
+
 internal data class PlaybackClock(val elapsed: Double = 0.0, val startedNanos: Long = 0L) {
     val running: Boolean get() = startedNanos != 0L
     fun read(now: Long = SystemClock.elapsedRealtimeNanos()): Double =
@@ -80,6 +83,10 @@ internal object SessionEvents {
 
     /** 静止保持请求：把定位钉在这条轨迹的起点。 */
     var holdRequest: Route? = null
+
+    /** 接管模式请求：自动化测试用，收到后立刻按默认轨迹开始回放。 */
+    @Volatile
+    var interceptRequest: InterceptRequest? = null
 
     fun observe(observer: (SessionState) -> Unit) {
         observers.add(observer)
