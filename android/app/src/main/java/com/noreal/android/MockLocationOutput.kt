@@ -104,11 +104,13 @@ internal class MockLocationOutput(private val context: Context) {
             elapsedRealtimeNanos = monotonicNanos
         }
         for (name in providers.toList()) {
-            if (name == LocationManager.GPS_PROVIDER) {
-                manager.setTestProviderLocation(name, sample(name))
-            } else if (runCatching { manager.setTestProviderLocation(name, sample(name)) }.isFailure) {
-                clearProvider(name)
-            }
+            val location = sample(name)
+            if (runCatching { manager.setTestProviderLocation(name, location) }.isSuccess) continue
+            // 切换定位模式等场景下系统会重建 LocationManager，注册记录随之失效。
+            // 补注册后再写一次，实在不行才放弃这一路，避免整个会话被一次异常终止。
+            val recovered = runCatching { register(name) }.isSuccess &&
+                runCatching { manager.setTestProviderLocation(name, location) }.isSuccess
+            if (!recovered) clearProvider(name)
         }
         fusedClient?.let { client ->
             val result = runCatching { Tasks.await(client.setMockLocation(sample("fused")), 1, TimeUnit.SECONDS) }
