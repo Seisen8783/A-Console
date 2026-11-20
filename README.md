@@ -1,10 +1,13 @@
 # NoReal
 
-NoReal 把一条轨迹变成手机的系统定位：按配速把轨迹展开成连续的坐标序列，逐点写入系统定位源，其他应用读到的就是这条轨迹。
+NoReal 是一个定位开发测试工具，支持轨迹导入、配速设置与模拟回放。
 
-只支持 Android（minSdk 24）。HarmonyOS 端已移除——该平台不向第三方应用开放定位注入，`ohos.permission.MOCK_LOCATION` 是 system_basic 级系统权限，SDK 中没有任何公开的写入接口，因此无法实现系统级模拟。
+| 平台 | 用法 |
+| --- | --- |
+| Android 7.0+ | 在手机上录制、规划和回放轨迹。 [Android 安装包](https://github.com/Seisen8783/NoReal/releases/tag/v1.0) |
+| macOS 14+（Apple 芯片） | 通过 USB 在测试 iPhone 上回放 GPX、KMZ 或 KML。 [Mac 控制台使用说明](macos/README.md) · [Mac 下载](https://github.com/Seisen8783/NoReal/releases/tag/macos-v0.2.0) |
 
-最新构建可在 [Releases](https://github.com/Seisen8783/NoReal/releases) 下载。本工具仅供测试使用。
+下面是 Android 版的使用说明。
 
 ## 系统模拟
 
