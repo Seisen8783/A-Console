@@ -201,33 +201,38 @@ NoReal 的轨迹引擎已经有 `Route.sample(elapsedSeconds, durationSeconds)`�
 
 ---
 
-## 5. 需要开发的部分
+## 5. 开发状态
 
-### 5.1 Android 版 NoReal：加 GPX 导出（必做，约 100 行）
+### 5.1 GPX 导出（已完成）
 
 ```
-轨迹（已有）→ 按配速展开（已有 sample()）→ 1 秒采样 → 写 trkpt + time → 分享/保存
+轨迹 → 按配速展开（Route.sample()）→ 1 秒采样 → 写 trkpt + time → GPX
 ```
+
+落在 `core/kotlin/com/noreal/core/GpxWriter.kt`，与平台无关：
 
 - 复用 `Route.sample()`，无需新算法
-- 圈数直接在外层重复，时间戳连续累加
-- 导出后通过 `FileProvider` 分享到任何地方（AirDrop 到 Mac / 微信传文件 / 存本地）
+- 圈数在外层重复，时间戳连续累加
+- 单文件上限 20000 点，超出自动降采样
+- `loopGapMeters()` 用来判断循环处会不会跳变
 
-> 鸿蒙端曾有 `TrackExport.buildGpx()`，砍掉鸿蒙时一起删了，逻辑可以照搬。
+> 导出后需手工把文件交给 Mac 侧（AirDrop / 微信传文件 / 存本地），目前没有做系统分享入口。
 
-### 5.2 Mac 侧推送器（可选，锦上添花）
+### 5.2 Mac 侧推送器（已完成，见 `macos/`）
 
-一个 200 行的 Python GUI/CLI，包 `pymobiledevice3`：
+Swift 控制台 + Python 设备桥接（`device_bridge.py`，包 `pymobiledevice3`）：
 
 ```
-选择 GPX → 自动起 tunnel → 播放 → 显示当前坐标/进度 → 停止时自动 clear
+选择 GPX/KMZ/KML → 自动起 tunnel → 播放 → 显示当前坐标/进度 → 停止时自动 clear
 ```
+
+控制台还负责定位到起点、时间条跳转、暂停保持当前位置、恢复定位。
 
 现成参考实现（都是 MIT）：
 - `JRTTF/PikminBloom`：Python GUI，支持路线/定点/收藏/速度预设，iOS 17/18/26+
 - `BiancoChiu/iOSEasyRun`：route.txt + config.yaml 生成 GPX 并播放，iOS 18.3.1 实测
 
-### 5.3 一条命令的闭环（目标形态）
+### 5.3 一条命令的闭环（未做）
 
 ```bash
 noreal push route.gpx        # NoReal 生成的 GPX 直接推给 iPhone

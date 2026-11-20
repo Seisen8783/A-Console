@@ -7,3 +7,11 @@ local.properties
 *.iml
 .backup/
 .workbuddy/
+*.swp
+
+# Android / HarmonyOS：已从仓库移出，代码仅保留在本地工作区
+android/
+harmony/
+tools/autotest/
+tools/emu-track.sh
+docs/NoReal-定位接管技术总览.md
