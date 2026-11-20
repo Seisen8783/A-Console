@@ -1,0 +1,474 @@
+import AppKit
+import Foundation
+
+struct USBDevice: Codable, Identifiable {
+    let id: String
+    let name: String
+    let version: String
+    let detail: String
+}
+
+private struct BridgeEvent: Decodable {
+    let kind: String
+    var message: String?
+    var devices: [USBDevice]?
+    var index: Int?
+    var elapsed: Double?
+    var clean: Bool?
+    var paused: Bool?
+    var ok: Bool?
+}
+
+private enum BridgeOperation: String {
+    case list, play, anchor, restore
+}
+
+final class ConsoleModel: ObservableObject {
+    static let shared = ConsoleModel()
+
+    @Published private(set) var devices: [USBDevice] = []
+    @Published var deviceID = ""
+    @Published private(set) var route: TrackRoute?
+    @Published private(set) var paceInput = ReplayPace.format(KMLRoute.defaultPace)
+    @Published private(set) var loop: LoopRoute?
+    @Published private(set) var useCenterline = true
+    @Published private(set) var lapsInput = "1"
+    @Published private(set) var timeline: [TrackPoint] = []
+    @Published private(set) var paused = false
+    @Published private(set) var hasStarted = false
+    private var originalRoute: TrackRoute?
+    private var seekIndex = 0
+    private var geometryPace = KMLRoute.defaultPace
+    private var appliedPace = KMLRoute.defaultPace
+    private var trackFile: URL?
+    @Published private var pendingUpdate: (points: [TrackPoint], pace: Int)?
+    @Published private(set) var status = "请连接 iPhone 并选择轨迹"
+    @Published private(set) var importError: String?
+    @Published private(set) var error: String?
+    @Published private(set) var pointIndex: Int?
+    @Published private(set) var elapsed: Double = 0
+    @Published private(set) var pendingID: String?
+    @Published private(set) var stopping = false
+    @Published private var operation: BridgeOperation?
+
+    private let pendingKey = "pending-device-udid"
+    private var process: Process?
+    private var input: FileHandle?
+    private var termination: (() -> Void)?
+    private var receivedResult = false
+    private var lastDiagnostic: String?
+
+    var busy: Bool { operation != nil }
+    var playing: Bool { operation == .play || operation == .anchor }
+    var canEditSettings: Bool { !busy || (playing && paused && !stopping && pendingUpdate == nil) }
+    var showsLap: Bool { useCenterline && loop != nil && !timeline.isEmpty }
+    var timelineLaps: Int {
+        guard showsLap, let route, route.points.count > 1 else { return 1 }
+        return (timeline.count - 1) / (route.points.count - 1)
+    }
+    var currentLap: Int {
+        ReplayTimeline.lap(at: pointIndex ?? 0, pointsPerLap: route?.points.count ?? 0,
+                           totalLaps: timelineLaps)
+    }
+    var lapBelowCurrent: Bool { playing && paused && (lapCount ?? 99) < currentLap }
+    var settingsChanged: Bool {
+        (route?.untimedSegments != nil && ReplayPace.parse(paceInput) != appliedPace) || lapCount != timelineLaps
+    }
+
+    var canAnchor: Bool { !busy && pendingID == nil && !deviceID.isEmpty && !timeline.isEmpty }
+    var canRestore: Bool { playing ? !stopping : !busy && !restoreDeviceID.isEmpty }
+    var lapCount: Int? {
+        guard useCenterline && loop != nil else { return 1 }
+        guard let value = Int(lapsInput), (1...99).contains(value) else { return nil }
+        return value
+    }
+    var canSeek: Bool {
+        (!busy || playing) && !stopping && pendingUpdate == nil && route?.timingIssue == nil && totalDuration > 0
+    }
+    var lapLimitExceeded: Bool {
+        guard let lapCount, let route, lapCount > 1 else { return false }
+        return route.points.count * lapCount > 200_000
+    }
+    var totalDuration: Double { timeline.last?.offset ?? 0 }
+    var previewIndex: Int? {
+        guard let index = pointIndex, let route else { return nil }
+        let length = route.points.count - 1
+        return index == 0 || length == 0 ? 0 : (index - 1) % length + 1
+    }
+    var canPlay: Bool {
+        (canAnchor || (playing && paused && !stopping))
+            && route?.timingIssue == nil && importError == nil && !timeline.isEmpty
+            && canApplySettings && !lapBelowCurrent
+    }
+    var canRestart: Bool {
+        playing ? !stopping && pendingUpdate == nil && (!paused || canApplySettings) : canPlay
+    }
+    private var canApplySettings: Bool { !invalidPace && lapCount != nil && !lapLimitExceeded && pendingUpdate == nil }
+    var invalidPace: Bool { route?.untimedSegments != nil && ReplayPace.parse(paceInput) == nil }
+    var restoreDeviceID: String { pendingID ?? deviceID }
+
+    private init() {
+        pendingID = UserDefaults.standard.string(forKey: pendingKey)
+    }
+
+    func load(_ url: URL) {
+        guard !busy else { return }
+        do {
+            let loaded = try TrackRoute.load(url)
+            originalRoute = loaded
+            loop = LoopRoute.fit(loaded)
+            useCenterline = true
+            lapsInput = "1"
+            importError = nil
+            rebuildRoute()
+        } catch {
+            originalRoute = nil
+            loop = nil
+            route = nil
+            timeline = []
+            pointIndex = nil
+            elapsed = 0
+            importError = error.localizedDescription
+        }
+    }
+
+    func setPace(_ text: String) {
+        guard canEditSettings, let route, route.untimedSegments != nil else { return }
+        paceInput = text
+        guard !busy, let seconds = ReplayPace.parse(text),
+              seconds != geometryPace || seconds != appliedPace else { return }
+        geometryPace = seconds
+        appliedPace = seconds
+        rebuildRoute()
+    }
+
+    func setCenterline(_ value: Bool) {
+        guard !busy else { return }
+        useCenterline = value
+        rebuildRoute()
+    }
+
+    func setLaps(_ value: String) {
+        guard canEditSettings else { return }
+        lapsInput = value
+        if !busy { rebuildTimeline() }
+    }
+
+    private func rebuildRoute() {
+        guard var source = originalRoute else { return }
+        if useCenterline, let loop { source.untimedSegments = [loop.centerline] }
+        route = KMLRoute.withPace(source, secondsPerKilometer: geometryPace)
+        rebuildTimeline()
+    }
+
+    private func rebuildTimeline() {
+        pointIndex = nil
+        seekIndex = 0
+        elapsed = 0
+        guard let route, let laps = lapCount, !route.points.isEmpty, !lapLimitExceeded else {
+            timeline = []
+            return
+        }
+        timeline = ReplayTimeline.build(route, laps: laps,
+                                        scale: Double(appliedPace) / Double(geometryPace))
+    }
+
+    func refresh() { launch(.list) }
+
+    func locateStart() {
+        guard canAnchor else { return }
+        pointIndex = nil
+        elapsed = 0
+        seekIndex = 0
+        launchTrack(.anchor, points: timeline)
+    }
+
+    func start() {
+        guard canPlay else { return }
+        if playing {
+            continueSession(restarting: false)
+        } else {
+            let from = seekIndex
+            prepareNewTimeline()
+            seekIndex = 0
+            pointIndex = from == 0 ? nil : from
+            elapsed = from == 0 ? 0 : timeline[from].offset
+            launchTrack(.play, points: timeline, from: from)
+        }
+    }
+
+    func restart() {
+        guard canRestart else { return }
+        if playing {
+            if paused { continueSession(restarting: true) }
+            else { send("seek 0\nresume") }
+        } else if canPlay {
+            pointIndex = nil
+            seekIndex = 0
+            elapsed = 0
+            start()
+        }
+    }
+
+    private func prepareNewTimeline() {
+        guard let route, let laps = lapCount else { return }
+        appliedPace = ReplayPace.parse(paceInput) ?? geometryPace
+        timeline = ReplayTimeline.build(route, laps: laps,
+                                        scale: Double(appliedPace) / Double(geometryPace))
+    }
+
+    private func continueSession(restarting: Bool) {
+        if !settingsChanged && !restarting {
+            send("resume")
+            return
+        }
+        guard let route, let trackFile, let laps = lapCount else { return }
+        let nextPace = ReplayPace.parse(paceInput) ?? geometryPace
+        let history = restarting ? timeline.prefix(0) : timeline.prefix((pointIndex ?? 0) + 1)
+        let updated = ReplayTimeline.build(route, laps: laps,
+                                           scale: Double(nextPace) / Double(geometryPace), keeping: history)
+        guard !updated.isEmpty else { return }
+
+        do {
+            try JSONEncoder().encode(updated).write(to: trackFile, options: .atomic)
+            pendingUpdate = (updated, nextPace)
+            if !send(restarting ? "apply-restart" : "apply") { pendingUpdate = nil }
+        } catch {
+            self.error = "无法更新回放设置。\(error.localizedDescription)"
+        }
+    }
+
+    func seek(to seconds: Double) {
+        guard canSeek else { return }
+        var lo = 0
+        var hi = timeline.count - 1
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if timeline[mid].offset < seconds { lo = mid + 1 } else { hi = mid }
+        }
+        if lo > 0 && seconds - timeline[lo - 1].offset < timeline[lo].offset - seconds { lo -= 1 }
+        if playing {
+            send("seek \(lo)")
+        } else {
+            pointIndex = lo
+            seekIndex = lo
+            elapsed = timeline[lo].offset
+        }
+    }
+
+    private func launchTrack(_ action: BridgeOperation, points: [TrackPoint], from index: Int = 0) {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".json")
+        do {
+            try JSONEncoder().encode(points).write(to: file, options: .atomic)
+            launch(action, serial: deviceID, file: file, index: index)
+        } catch {
+            self.error = "无法准备轨迹文件。\(error.localizedDescription)"
+        }
+    }
+
+    func restore() {
+        guard canRestore else { return }
+        if playing {
+            endSimulation()
+        } else {
+            launch(.restore, serial: restoreDeviceID)
+        }
+    }
+
+    func pause() {
+        guard playing, !paused, !stopping else { return }
+        send("pause")
+    }
+
+    @discardableResult
+    private func send(_ command: String) -> Bool {
+        guard let input else { return false }
+        do {
+            try input.write(contentsOf: Data((command + "\n").utf8))
+            return true
+        } catch {
+            self.error = "无法发送回放命令。\(error.localizedDescription)"
+            return false
+        }
+    }
+
+    private func endSimulation() {
+        guard playing, !stopping else { return }
+        stopping = true
+        status = "正在恢复定位"
+        try? input?.close()
+        input = nil
+    }
+
+    func prepareToQuit(_ reply: @escaping () -> Void) -> Bool {
+        guard busy else { return false }
+        termination = reply
+        endSimulation()
+        return true
+    }
+
+    private func recordPending(_ serial: String?) {
+        pendingID = serial
+        UserDefaults.standard.set(serial, forKey: pendingKey)
+    }
+
+    private func launch(_ action: BridgeOperation, serial: String? = nil, file: URL? = nil, index: Int = 0) {
+        guard !busy else {
+            if let file { try? FileManager.default.removeItem(at: file) }
+            return
+        }
+        error = nil
+        lastDiagnostic = nil
+        receivedResult = false
+        guard let executable = Self.uvx, let bridge = Bundle.module.url(forResource: "device_bridge",
+                                                                 withExtension: "py") else {
+            if let file { try? FileManager.default.removeItem(at: file) }
+            error = "找不到 uvx 或设备桥接文件。请安装 uv 后重新打开控制台。"
+            return
+        }
+        let task = Process()
+        let output = Pipe()
+        let commands = Pipe()
+        task.executableURL = executable
+        task.arguments = ["--from", "pymobiledevice3==11.61.0", "--python", "3.14", "python", "-u",
+                          bridge.path, action.rawValue] + [serial, file?.path].compactMap { $0 }
+        if action == .play { task.arguments?.append(contentsOf: ["--index", String(index)]) }
+        task.standardOutput = output
+        task.standardError = output
+        task.standardInput = commands
+        status = action == .list ? "正在查找 USB 设备" : "正在启动设备桥接"
+        operation = action
+        trackFile = file
+        process = task
+        input = commands.fileHandleForWriting
+        let previousPending = pendingID
+        if let serial { recordPending(serial) }
+
+        do {
+            try task.run()
+        } catch {
+            recordPending(previousPending)
+            if let file { try? FileManager.default.removeItem(at: file) }
+            finish()
+            self.error = "无法启动设备桥接。\(error.localizedDescription)"
+            return
+        }
+
+        let reader = output.fileHandleForReading
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var buffer = Data()
+            while true {
+                let chunk = reader.availableData
+                if chunk.isEmpty { break }
+                buffer.append(chunk)
+                while let newline = buffer.firstIndex(of: 10) {
+                    let line = Data(buffer.prefix(upTo: newline))
+                    buffer.removeSubrange(...newline)
+                    DispatchQueue.main.async { [weak self] in self?.consume(line) }
+                }
+            }
+            if !buffer.isEmpty {
+                let lastLine = buffer
+                DispatchQueue.main.async { [weak self] in self?.consume(lastLine) }
+            }
+            task.waitUntilExit()
+            let code = task.terminationStatus
+            if let file { try? FileManager.default.removeItem(at: file) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if !receivedResult && (code != 0 || action != .list) {
+                    status = "设备桥接已退出"
+                    error = lastDiagnostic ?? "设备桥接异常退出（\(code)）。"
+                }
+                finish()
+            }
+        }
+    }
+
+    private func consume(_ line: Data) {
+        guard let event = try? JSONDecoder().decode(BridgeEvent.self, from: line) else {
+            if let text = String(data: line, encoding: .utf8), !text.isEmpty {
+                lastDiagnostic = String(text.prefix(400))
+            }
+            return
+        }
+        switch event.kind {
+        case "devices":
+            devices = event.devices ?? []
+            if !devices.contains(where: { $0.id == deviceID }) {
+                deviceID = devices.first(where: { $0.id == pendingID })?.id ?? devices.first?.id ?? ""
+            }
+            status = devices.isEmpty ? "未发现 USB iPhone" : "USB 设备列表已更新"
+        case "state":
+            if let message = event.message { status = message }
+        case "mode":
+            if let value = event.paused {
+                paused = value
+                if !value { hasStarted = true }
+            }
+            if let message = event.message { status = message }
+        case "updated":
+            if let pendingUpdate {
+                timeline = pendingUpdate.points
+                appliedPace = pendingUpdate.pace
+            }
+            pendingUpdate = nil
+            if event.index == nil {
+                pointIndex = nil
+                elapsed = 0
+            }
+            paused = false
+            hasStarted = true
+            error = nil
+        case "update-error":
+            pendingUpdate = nil
+            error = event.message
+        case "point":
+            pointIndex = event.index
+            elapsed = event.elapsed ?? 0
+        case "cleared":
+            recordPending(nil)
+        case "result":
+            receivedResult = true
+            if operation != .list && event.clean == true { recordPending(nil) }
+            if event.ok == true {
+                status = event.message ?? "操作完成"
+            } else {
+                status = "操作失败"
+                error = event.message
+            }
+        default:
+            break
+        }
+    }
+
+    private func finish() {
+        try? input?.close()
+        input = nil
+        process = nil
+        let hadSession = playing
+        operation = nil
+        trackFile = nil
+        pendingUpdate = nil
+        if hadSession && settingsChanged && canApplySettings {
+            pointIndex = nil
+            elapsed = 0
+            seekIndex = 0
+            prepareNewTimeline()
+        }
+        paused = false
+        hasStarted = false
+        stopping = false
+        let reply = termination
+        termination = nil
+        reply?()
+    }
+
+    private static var uvx: URL? {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let path = ProcessInfo.processInfo.environment["PATH"]?.split(separator: ":").map(String.init) ?? []
+        let directories = path + ["\(home)/.local/bin", "\(home)/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+        return directories.map { URL(fileURLWithPath: $0).appendingPathComponent("uvx") }
+            .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+    }
+}
