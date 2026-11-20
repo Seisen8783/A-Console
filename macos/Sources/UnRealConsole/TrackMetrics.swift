@@ -1,5 +1,24 @@
 import Foundation
 
+/// 回放长度的计量方式（互斥二选一）。
+///
+/// 界面上是左侧带勾选框的两行，勾选哪一行就用哪种方式计量长度。
+enum LengthMode: String, CaseIterable, Identifiable {
+    /// 按圈数：轨迹循环若干圈。
+    case laps
+    /// 按公里数：轨迹循环到指定距离。
+    case kilometers
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .laps: return "总圈数"
+        case .kilometers: return "公里数"
+        }
+    }
+}
+
 /// 轨迹的弧长测量与按距离截取。
 ///
 /// 「支持公里数模拟」需要回答两个问题：

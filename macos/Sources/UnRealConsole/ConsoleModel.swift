@@ -33,6 +33,7 @@ final class ConsoleModel: ObservableObject {
     @Published private(set) var loop: LoopRoute?
     @Published private(set) var useCenterline = true
     @Published private(set) var lapsInput = "1"
+    @Published var lengthMode: LengthMode = .laps
     @Published var targetKilometers: String = ""
     @Published var coordinateSystem: CoordinateSystem = .gcj02
     @Published var calibration = CalibrationOffset.zero
@@ -114,8 +115,9 @@ final class ConsoleModel: ObservableObject {
     var invalidPace: Bool { route?.untimedSegments != nil && ReplayPace.parse(paceInput) == nil }
     var restoreDeviceID: String { pendingID ?? deviceID }
 
-    /// 目标公里数（米）。设了它就按公里数走，不再按圈数。
+    /// 目标公里数（米）。仅在公里数模式下有效。
     var targetMeters: Double? {
+        guard lengthMode == .kilometers else { return nil }
         let trimmed = targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite, value > 0 else { return nil }
         return (value * 1000).rounded()
@@ -123,14 +125,15 @@ final class ConsoleModel: ObservableObject {
 
     /// 公里数输入是否非法（非空但解析不出合法正数）。
     var invalidKilometers: Bool {
+        guard lengthMode == .kilometers else { return false }
         let trimmed = targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         guard let value = Double(trimmed), value.isFinite else { return true }
         return value <= 0 || value > 1000
     }
 
-    /// 当前按公里数模式工作（优先于圈数）。
-    var usesKilometers: Bool { targetMeters != nil }
+    /// 当前按公里数模式工作。
+    var usesKilometers: Bool { lengthMode == .kilometers }
 
     /// 单圈中线长度（米），用于展示与换算。
     var lapMeters: Double {
@@ -168,6 +171,12 @@ final class ConsoleModel: ObservableObject {
             lapsInput = "1"
             importError = nil
             rebuildRoute()
+            // 换了轨迹，若公里数是自动预填的（用户没手动改），按新轨迹重算。
+            if lengthMode == .kilometers, !kilometersEditedByUser {
+                let meters = max(totalMeters, 1)
+                targetKilometers = String(format: "%.2f", meters / 1000)
+                rebuildRoute()
+            }
         } catch {
             originalRoute = nil
             loop = nil
@@ -235,10 +244,32 @@ final class ConsoleModel: ObservableObject {
         guard canEditSettings else { return }
         guard text != targetKilometers else { return }
         targetKilometers = text
+        // 用户手动改过之后，换轨迹不再自动覆盖。
+        kilometersEditedByUser = true
         // 输入过程中可能暂时非法，此时不重建，等输入合法再说。
         guard !invalidKilometers else { return }
         rebuildRoute()
     }
+
+    /// 切换长度计量方式（圈数 ↔ 公里数）。
+    ///
+    /// 切到公里数时，若输入框还是空的，按当前总长度自动填一个值，
+    /// 免得用户面对空框不知道该填多少。
+    func setLengthMode(_ mode: LengthMode) {
+        guard canEditSettings, mode != lengthMode else { return }
+        // 先按旧模式算出总长度，再切换——否则 lapCount 已经变了，预填值会偏小。
+        let previousTotal = totalMeters
+        lengthMode = mode
+        if mode == .kilometers, targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let meters = previousTotal > 0 ? previousTotal : lapMeters
+            targetKilometers = String(format: "%.2f", max(meters, 1) / 1000)
+            kilometersEditedByUser = false
+        }
+        rebuildRoute()
+    }
+
+    /// 公里数是否被用户手动改过。改过之后换轨迹就不自动重算。
+    private var kilometersEditedByUser = false
 
     func setPace(_ text: String) {
         guard canEditSettings, let route, route.untimedSegments != nil else { return }

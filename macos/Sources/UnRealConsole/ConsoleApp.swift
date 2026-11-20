@@ -140,26 +140,9 @@ private struct ConsoleView: View {
                         Text("由 \(loop.sourceLaps) 圈拟合 · 每圈约 \(Int(loop.meters.rounded())) 米")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        HStack {
-                            Text("总圈数")
-                            TextField("1", text: Binding(get: { model.lapsInput }, set: { model.setLaps($0) }))
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 55)
-                                .accessibilityLabel("总圈数")
-                                .disabled(!model.canEditSettings)
-                        }
-                        if model.lapBelowCurrent {
-                            Text("总圈数至少为当前第 \(model.currentLap) 圈。")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        } else if model.lapCount == nil || model.lapLimitExceeded {
-                            Text(model.lapLimitExceeded ? "轨迹过长，请减少圈数。" : "请输入 1 至 99 圈。")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
                     }
                 }
-                kilometerField
+                lengthModeFields
                 if model.paused && model.settingsChanged && !model.invalidPace &&
                     model.lapCount != nil && !model.lapBelowCurrent && !model.lapLimitExceeded {
                     Text("继续回放时应用新设置")
@@ -210,6 +193,64 @@ private struct ConsoleView: View {
                 })
     }
 
+    /// 长度计量方式：两行复选框，勾选哪一行就用哪种方式，互斥二选一。
+    private var lengthModeFields: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            // 总圈数
+            HStack(spacing: 8) {
+                Toggle("总圈数", isOn: Binding(
+                    get: { model.lengthMode == .laps },
+                    set: { checked in
+                        // 取消勾选时切到另一种方式，保证始终二选一。
+                        model.setLengthMode(checked ? .laps : .kilometers)
+                    }))
+                    .toggleStyle(.checkbox)
+                    .disabled(!model.canEditSettings)
+                TextField("1", text: Binding(get: { model.lapsInput }, set: { model.setLaps($0) }))
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+                    .frame(width: 55)
+                    .accessibilityLabel("总圈数")
+                    .disabled(!model.canEditSettings || model.lengthMode != .laps)
+            }
+            if model.lengthMode == .laps {
+                if model.lapBelowCurrent {
+                    Text("总圈数至少为当前第 \(model.currentLap) 圈。")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if model.lapCount == nil || model.lapLimitExceeded {
+                    Text(model.lapLimitExceeded ? "轨迹过长，请减少圈数。" : "请输入 1 至 99 圈。")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            // 公里数
+            HStack(spacing: 8) {
+                Toggle("公里数", isOn: Binding(
+                    get: { model.lengthMode == .kilometers },
+                    set: { checked in
+                        model.setLengthMode(checked ? .kilometers : .laps)
+                    }))
+                    .toggleStyle(.checkbox)
+                    .disabled(!model.canEditSettings)
+                TextField("如 1.50", text: Binding(get: { model.targetKilometers },
+                                                set: { model.setTargetKilometers($0) }))
+                    .textFieldStyle(.roundedBorder)
+                    .monospacedDigit()
+                    .frame(width: 72)
+                    .accessibilityLabel("目标公里数")
+                    .disabled(!model.canEditSettings || model.lengthMode != .kilometers)
+                Text("km").foregroundStyle(.secondary)
+            }
+            if model.lengthMode == .kilometers && model.invalidKilometers {
+                Text("请输入 0 以上的公里数，最多 1000。")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
     /// 米数进度：已模拟 / 本次总计。
     ///
     /// 格式按距离大小自适应：
@@ -230,31 +271,6 @@ private struct ConsoleView: View {
         return String(format: "%.2fkm", meters / 1000)
     }
 
-    /// 目标公里数。填了就按公里数走，忽略圈数。
-    private var kilometerField: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("公里数")
-                TextField("如 1.50", text: Binding(get: { model.targetKilometers },
-                                                set: { model.setTargetKilometers($0) }))
-                    .textFieldStyle(.roundedBorder)
-                    .monospacedDigit()
-                    .frame(width: 72)
-                    .accessibilityLabel("目标公里数")
-                    .disabled(!model.canEditSettings)
-                Text("km").foregroundStyle(.secondary)
-            }
-            if model.invalidKilometers {
-                Text("请输入 0 以上的公里数，最多 1000。")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            } else if model.usesKilometers {
-                Text("按 \(String(format: "%.2f", model.targetMeters! / 1000))  公里模拟，忽略总圈数。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
 
     private var calibrationFields: some View {        VStack(alignment: .leading, spacing: 6) {
             HStack {
