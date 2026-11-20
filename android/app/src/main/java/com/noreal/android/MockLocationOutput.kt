@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.location.provider.ProviderProperties
 import android.os.Build
 import android.os.Process
+import android.provider.Settings
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -29,10 +30,14 @@ internal class MockLocationOutput(private val context: Context) {
         // 不在这里前置检查 app op：兼容层（鸿蒙卓易通等）的 checkOpNoThrow 可能误报，
         // 让 addTestProvider 的真实结果决定成败。
         check(restorePending()) { "上一会话的定位输出尚未清理。" }
-        val hasNetwork = LocationManager.NETWORK_PROVIDER in manager.allProviders
         register(LocationManager.GPS_PROVIDER)
-        if (hasNetwork) {
-            runCatching { register(LocationManager.NETWORK_PROVIDER) }
+        // 「仅设备」模式下 network 本来是被禁用的。一旦接管它并置为 enabled，
+        // 系统会重新用网络定位，把刚关掉的 WiFi/基站路径又打开，所以只在允许网络定位时才接管。
+        if (networkAllowed()) {
+            val hasNetwork = LocationManager.NETWORK_PROVIDER in manager.allProviders
+            if (hasNetwork) {
+                runCatching { register(LocationManager.NETWORK_PROVIDER) }
+            }
         }
         if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS) {
             val client = LocationServices.getFusedLocationProviderClient(context)
@@ -43,6 +48,16 @@ internal class MockLocationOutput(private val context: Context) {
                 clearFused()
             }
         }
+    }
+
+    /** 当前系统定位模式是否允许网络定位介入。 */
+    private fun networkAllowed(): Boolean {
+        val mode = Settings.Secure.getInt(
+            context.contentResolver,
+            Settings.Secure.LOCATION_MODE,
+            Settings.Secure.LOCATION_MODE_HIGH_ACCURACY
+        )
+        return mode != Settings.Secure.LOCATION_MODE_SENSORS_ONLY
     }
 
     @Suppress("DEPRECATION")
