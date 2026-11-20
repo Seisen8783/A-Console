@@ -37,7 +37,6 @@ class LocProbeActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val streamFix = AtomicReference<String?>(null)
     private val systemFix = AtomicReference<String?>(null)
-    private val socket = AtomicReference<DatagramSocket?>(null)
     private lateinit var view: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,9 +55,7 @@ class LocProbeActivity : Activity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        runCatching { socket.getAndSet(null)?.close() }
     }
-
     /** 把探针自己加进 LocBridge 的目标列表。 */
     private fun registerAsTarget() {
         runCatching {
@@ -71,39 +68,48 @@ class LocProbeActivity : Activity() {
 
     /** 订阅 NoReal 的本机坐标流。 */
     private fun subscribeStream() {
-        Thread {
-            runCatching {
-                val sock = DatagramSocket()
-                sock.soTimeout = 2000
-                sock.connect(InetSocketAddress("127.0.0.1", PORT))
-                sock.send(DatagramPacket(SUB, SUB.size))
-                socket.set(sock)
-                val buffer = ByteArray(4096)
-                while (!Thread.currentThread().isInterrupted) {
-                    try {
-                        val packet = DatagramPacket(buffer, buffer.size)
-                        sock.receive(packet)
-                        val text = String(packet.data, 0, packet.length, Charsets.UTF_8)
-                        val json = JSONObject(text)
-                        streamFix.set(
-                            "lat=%.6f lon=%.6f spd=%.2f brg=%.1f lap=%d ts=%d".format(
-                                json.optDouble("lat"),
-                                json.optDouble("lon"),
-                                json.optDouble("spd"),
-                                json.optDouble("brg"),
-                                json.optInt("lap"),
-                                json.optLong("ts")
+        Thread({
+            val target = InetSocketAddress("127.0.0.1", PORT)
+            while (!Thread.currentThread().isInterrupted) {
+                var sock: DatagramSocket? = null
+                try {
+                    sock = DatagramSocket()
+                    sock.soTimeout = 2000
+                    // 不 connect：connect 过的 UDP socket 在对端没监听时会收到
+                    // ICMP port-unreachable，之后收发全部失败，订阅线程就此死掉。
+                    sock.send(DatagramPacket(SUB, SUB.size, target))
+                    val buffer = ByteArray(4096)
+                    while (!Thread.currentThread().isInterrupted) {
+                        try {
+                            val packet = DatagramPacket(buffer, buffer.size)
+                            sock.receive(packet)
+                            val text = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                            val json = JSONObject(text)
+                            streamFix.set(
+                                "lat=%.6f lon=%.6f spd=%.2f brg=%.1f lap=%d ts=%d".format(
+                                    json.optDouble("lat"),
+                                    json.optDouble("lon"),
+                                    json.optDouble("spd"),
+                                    json.optDouble("brg"),
+                                    json.optInt("lap"),
+                                    json.optLong("ts")
+                                )
                             )
-                        )
-                        Log.i(TAG, "stream ${streamFix.get()}")
-                    } catch (_: SocketTimeoutException) {
-                        // 超时不代表订阅失效：UDP 不会重传之前的订阅包，这里定期补发一个，
-                        // 保证 NoReal 后启动时也能发现我们。
-                        runCatching { sock.send(DatagramPacket(SUB, SUB.size)) }
+                            Log.i(TAG, "stream ${streamFix.get()}")
+                        } catch (_: SocketTimeoutException) {
+                            // UDP 不会重传之前的订阅包，这里定期补发一个，
+                            // 保证 NoReal 后启动时也能发现我们。
+                            runCatching { sock.send(DatagramPacket(SUB, SUB.size, target)) }
+                        }
                     }
+                } catch (failure: Exception) {
+                    Log.w(TAG, "订阅断开，2 秒后重连：${failure.message}")
+                    runCatching { Thread.sleep(2000L) }
+                } finally {
+                    runCatching { sock?.close() }
                 }
             }
-        }.apply { isDaemon = true; start() }
+        }, "locprobe-stream").apply { isDaemon = true; start() }
     }
 
     @SuppressLint("MissingPermission")

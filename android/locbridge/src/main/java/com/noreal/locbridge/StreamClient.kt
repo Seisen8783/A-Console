@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicReference
  */
 internal class StreamClient(private val port: Int) {
 
-    private var socket: DatagramSocket? = null
     private var thread: Thread? = null
 
     @Volatile
@@ -30,43 +29,42 @@ internal class StreamClient(private val port: Int) {
         if (running) return
         running = true
         thread = Thread({
-            val sock = DatagramSocket()
-            socket = sock
-            sock.soTimeout = 2000
             val server = InetSocketAddress(LOOPBACK, port)
-            try {
-                sock.connect(server)
-                subscribe(sock)
-            } catch (failure: Exception) {
-                lastError.set(failure.message)
-            }
-            val buffer = ByteArray(4096)
             while (running) {
+                var sock: DatagramSocket? = null
                 try {
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    sock.receive(packet)
-                    val text = String(packet.data, 0, packet.length, Charsets.UTF_8)
-                    val fix = Fix.parse(text)
-                    if (fix != null) {
-                        connected = true
-                        lastError.set(null)
-                        onFix(fix)
+                    sock = DatagramSocket()
+                    sock.soTimeout = 2000
+                    // 不 connect：对端没在监听时，connect 过的 UDP socket 会收到
+                    // ICMP port-unreachable，之后收发全部失败。模块通常比 NoReal 先启动，
+                    // 这里保持无连接，靠定期重发订阅包维持关系。
+                    sock.send(DatagramPacket(SUBSCRIBE, SUBSCRIBE.size, server))
+                    val buffer = ByteArray(4096)
+                    while (running) {
+                        try {
+                            val packet = DatagramPacket(buffer, buffer.size)
+                            sock.receive(packet)
+                            val text = String(packet.data, 0, packet.length, Charsets.UTF_8)
+                            val fix = Fix.parse(text)
+                            if (fix != null) {
+                                connected = true
+                                lastError.set(null)
+                                onFix(fix)
+                            }
+                        } catch (_: SocketTimeoutException) {
+                            runCatching { sock.send(DatagramPacket(SUBSCRIBE, SUBSCRIBE.size, server)) }
+                        }
                     }
-                } catch (_: SocketTimeoutException) {
-                    // NoReal 空闲时不发包，用订阅包做一次保活，顺便探测服务是否还在。
-                    runCatching { subscribe(sock) }
                 } catch (failure: Exception) {
                     if (!running) break
                     lastError.set(failure.message)
                     connected = false
                     runCatching { Thread.sleep(1000L) }
-                    runCatching {
-                        sock.connect(InetSocketAddress(LOOPBACK, port))
-                        subscribe(sock)
-                    }
+                } finally {
+                    runCatching { sock?.close() }
                 }
             }
-            runCatching { sock.close() }
+            connected = false
         }, "noreal-bridge-stream").apply {
             isDaemon = true
             start()
@@ -75,8 +73,6 @@ internal class StreamClient(private val port: Int) {
 
     fun stop() {
         running = false
-        runCatching { socket?.close() }
-        socket = null
         thread = null
         connected = false
     }
@@ -84,9 +80,5 @@ internal class StreamClient(private val port: Int) {
     companion object {
         private const val LOOPBACK = "127.0.0.1"
         private val SUBSCRIBE = "SUB".toByteArray()
-
-        private fun subscribe(socket: DatagramSocket) {
-            socket.send(DatagramPacket(SUBSCRIBE, SUBSCRIBE.size))
-        }
     }
 }

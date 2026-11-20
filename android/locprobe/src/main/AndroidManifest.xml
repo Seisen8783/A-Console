@@ -5,6 +5,14 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Android 11+ 的包可见性：没有这两条声明，就找不到 NPatch 的配置 provider
+         （模块注入读不到配置），也找不到 LocBridge 的 provider（没法把自己注册成目标）。 -->
+    <queries>
+        <package android:name="top.nkbe.npatch" />
+        <package android:name="com.noreal.locbridge" />
+        <package android:name="com.noreal.android" />
+    </queries>
+
     <application
         android:allowBackup="false"
         android:label="LocProbe"
