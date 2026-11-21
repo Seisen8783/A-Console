@@ -68,7 +68,7 @@ final class ReportAlignmentTests: XCTestCase {
         XCTAssertEqual(model.reportAlignment, .pullBackOneDatum)
     }
 
-    func testPullBackShiftsTrackWestwardByAbout475Meters() {
+    func testPullBackShiftsTrackWestwardByAbout525Meters() {
         let model = ConsoleModel.shared
         model.loadBundledTrack()
         model.setReportAlignment(.asIs)
@@ -82,9 +82,11 @@ final class ReportAlignmentTests: XCTestCase {
         let east = (compensated.longitude - plain.longitude) * 111_320
             * cos(plain.latitude * .pi / 180)
         let north = (compensated.latitude - plain.latitude) * 111_320
-        // GCJ-02 反解是往西南方向约 475 米。
-        XCTAssertEqual(east, -466, accuracy: 30)
-        XCTAssertEqual(north, -75, accuracy: 30)
+        // GCJ-02 反解在滨州一带约往西南 525 米 / 75 米。
+        // 权威算法见 eviltransform：transformLon 的正弦项一律用 x。
+        // 曾把后两项写成 y，导致少算 57 米（当时断言 -466），已修正。
+        XCTAssertEqual(east, -524, accuracy: 5)
+        XCTAssertEqual(north, -75, accuracy: 5)
     }
 
     func testReportAlignmentDisplayNames() {

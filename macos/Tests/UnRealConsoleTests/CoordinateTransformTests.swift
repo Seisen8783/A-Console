@@ -14,6 +14,40 @@ final class CoordinateTransformTests: XCTestCase {
         XCTAssertEqual(result.latitude, vectorGCJ02.latitude, accuracy: 0.0002)
     }
 
+    /// 滨州校园的精确偏移。
+    ///
+    /// 用 eviltransform 的权威实现算出 (117.990750, 37.388993)，
+    /// 即东约 526 米、北约 76 米。
+    /// 这条断言曾抓到一个真 bug：transformLon 的正弦项误用 y，
+    /// 导致东向少算 57 米（469 而非 526）。
+    func testBinzhouOffsetMatchesReferenceImplementation() {
+        let campus = (longitude: 117.984803, latitude: 37.388301)
+        let result = CoordinateTransform.wgs84ToGCJ02(longitude: campus.longitude,
+                                                      latitude: campus.latitude)
+        XCTAssertEqual(result.longitude, 117.990750, accuracy: 0.00005)
+        XCTAssertEqual(result.latitude, 37.388993, accuracy: 0.00005)
+
+        let east = (result.longitude - campus.longitude) * 111_320
+            * cos(campus.latitude * .pi / 180)
+        XCTAssertEqual(east, 526, accuracy: 5)
+    }
+
+    /// 用真实地物交叉验证：OSM 的 WGS-84 足球场转换后，
+    /// 应比错误实现更靠近腾讯地图的 GCJ-02 塑胶篮球场。
+    func testRealLandmarkCrossCheck() {
+        let osmSoccerPitch = (longitude: 117.982438, latitude: 37.387769)
+        let tencentBasketball = (longitude: 117.989281, latitude: 37.388547)
+        let converted = CoordinateTransform.wgs84ToGCJ02(longitude: osmSoccerPitch.longitude,
+                                                          latitude: osmSoccerPitch.latitude)
+        let dx = (converted.longitude - tencentBasketball.longitude) * 111_320
+            * cos(37.388 * .pi / 180)
+        let dy = (converted.latitude - tencentBasketball.latitude) * 111_320
+        let distance = (dx * dx + dy * dy).squareRoot()
+        // 两个 POI 不是同一个点，但正确算法下应在 100 米内；
+        // 错误算法（正弦项用 y）会到 137 米。
+        XCTAssertLessThan(distance, 110)
+    }
+
     func testGCJ02ToWGS84IsInverseOfForward() {
         let forward = CoordinateTransform.wgs84ToGCJ02(longitude: vector.longitude,
                                                        latitude: vector.latitude)

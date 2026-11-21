@@ -147,10 +147,13 @@ enum CoordinateTransform {
     }
 
     private static func transformLongitude(x: Double, y: Double) -> Double {
-        var result = 300.0 + x + 2.0 * y + 0.1 * x * y + 0.1 * x * x + 0.1 * sqrt(abs(x))
+        // 注意：正弦项一律用 x（经差），不是 y。权威实现见
+        // googollee/eviltransform javascript/transform.js 的 transform()。
+        // 曾经把后两项写成 y，滨州一带会少算约 57 米东向偏移。
+        var result = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * sqrt(abs(x))
         result += (20.0 * sin(6.0 * x * pi) + 20.0 * sin(2.0 * x * pi)) * 2.0 / 3.0
-        result += (20.0 * sin(y * pi) + 40.0 * sin(y / 3.0 * pi)) * 2.0 / 3.0
-        result += (150.0 * sin(y / 12.0 * pi) + 300.0 * sin(y / 30.0 * pi)) * 2.0 / 3.0
+        result += (20.0 * sin(x * pi) + 40.0 * sin(x / 3.0 * pi)) * 2.0 / 3.0
+        result += (150.0 * sin(x / 12.0 * pi) + 300.0 * sin(x / 30.0 * pi)) * 2.0 / 3.0
         return result
     }
 }

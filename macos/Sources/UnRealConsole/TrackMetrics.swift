@@ -26,7 +26,7 @@ enum LengthMode: String, CaseIterable, Identifiable {
 /// 所以注入值与上报值之间隔着一次 GCJ-02 转换。
 ///
 /// 服务端的校园围栏若按 WGS-84 标注（从 GPS/测绘数据导入的常见做法），
-/// 两者就差一个基准偏移量——滨州一带约 475 米，于是明明在操场上却判「非校园区域」。
+/// 两者就差一个基准偏移量——滨州一带约 525 米，于是明明在操场上却判「非校园区域」。
 /// 「回退一个基准」就是预先做一次反解，让微信转回来正好等于文件原值。
 enum ReportAlignment: String, CaseIterable, Identifiable {
     /// 原样：注入什么，微信转完上报什么。
@@ -48,7 +48,7 @@ enum ReportAlignment: String, CaseIterable, Identifiable {
         case .asIs:
             return "注入值经微信转换后原样上报。服务端围栏与小程序上报同基准时用这个。"
         case .pullBackOneDatum:
-            return "微信把 WGS-84 转成 GCJ-02 后才上报。服务端围栏若是 WGS-84，需预先回退一次，\n否则会差一个基准偏移量（滨州一带约 475 米），导致明明在操场却判「非校园区域」。"
+            return "微信把 WGS-84 转成 GCJ-02 后才上报。服务端围栏若是 WGS-84，需预先回退一次，\n否则会差一个基准偏移量（滨州一带约 525 米），导致明明在操场却判「非校园区域」。"
         }
     }
 }

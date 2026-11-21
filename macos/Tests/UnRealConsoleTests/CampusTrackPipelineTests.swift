@@ -31,7 +31,7 @@ final class CampusTrackPipelineTests: XCTestCase {
         XCTAssertTrue(meters < 400, "轨迹中心应落在足球场附近，实际 \(meters) m")
 
         // 若误标为 GCJ-02 并做归一化，整条轨迹会被整体平移一个基准偏移量
-        // （滨州一带约 475 米）。这才是可靠的不变量——位移量，而不是与球场的距离增减。
+        // （滨州一带约 525 米）。这才是可靠的不变量——位移量，而不是与球场的距离增减。
         let mislabeled = CoordinateSystem.gcj02.normalized(route: route)
         let moved = mislabeled.points.reduce(into: (lat: 0.0, lon: 0.0)) { sum, point in
             sum.lat += point.latitude
