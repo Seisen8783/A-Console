@@ -73,7 +73,12 @@ enum TrackMetrics {
     }
 
     /// 每个点之前的累计距离。第 0 个点为 0。
+    ///
+    /// 空数组直接返回空数组：`1..<0` 是非法区间，会直接崩。
     static func cumulativeDistances(_ points: [TrackPoint]) -> [Double] {
+        guard points.count > 1 else {
+            return [Double](repeating: 0, count: points.count)
+        }
         var result = [Double](repeating: 0, count: points.count)
         for index in 1..<points.count {
             result[index] = result[index - 1] + meters(points[index - 1], points[index])

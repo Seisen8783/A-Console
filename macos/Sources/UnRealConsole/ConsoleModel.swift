@@ -150,13 +150,33 @@ final class ConsoleModel: ObservableObject {
 
     /// 已模拟的米数（按当前播放位置）。
     var simulatedMeters: Double {
-        guard !timeline.isEmpty else { return 0 }
-        let index = min(max(0, pointIndex ?? 0), timeline.count - 1)
-        return timelineCumulative[index]
+        simulatedMeters(at: pointIndex)
+    }
+
+    /// 指定位置处的已模拟米数。传 `nil` 表示当前播放位置。
+    ///
+    /// 两个数组历史上会脱节（`timeline` 被整体替换时忘了同步累计距离），
+    /// 于是这里按新长度取下标就越界崩溃。现在两处都做钳制：
+    /// 写入统一走 `setTimeline(_:)`，读取再按累计距离的实际长度兜一次底。
+    func simulatedMeters(at index: Int?) -> Double {
+        guard !timeline.isEmpty, !timelineCumulative.isEmpty else { return 0 }
+        let clamped = min(max(0, index ?? 0), min(timeline.count, timelineCumulative.count) - 1)
+        return timelineCumulative[clamped]
     }
 
     /// 时间轴的累计距离，随时间轴重建时更新。
-    private var timelineCumulative: [Double] = []
+    ///
+    /// 必须与 `timeline` 等长——两者永远成对更新，只能经由 `setTimeline(_:)` 写入。
+    private(set) var timelineCumulative: [Double] = []
+
+    /// 唯一的写入口：替换时间轴，并同步它的累计距离。
+    ///
+    /// 以前有 5 处直接给 `timeline` 赋值，其中「应用新设置」那处漏了累计距离，
+    /// 导致 `simulatedMeters` 越界（SIGTRAP / Index out of range）。
+    func setTimeline(_ points: [TrackPoint]) {
+        timeline = points
+        timelineCumulative = TrackMetrics.cumulativeDistances(points)
+    }
 
     private init() {
         pendingID = UserDefaults.standard.string(forKey: pendingKey)
@@ -182,7 +202,7 @@ final class ConsoleModel: ObservableObject {
             originalRoute = nil
             loop = nil
             route = nil
-            timeline = []
+            setTimeline([])
             pointIndex = nil
             elapsed = 0
             importError = error.localizedDescription
@@ -373,18 +393,17 @@ final class ConsoleModel: ObservableObject {
         seekIndex = 0
         elapsed = 0
         guard let route, !route.points.isEmpty, !lapLimitExceeded else {
-            timeline = []
+            setTimeline([])
             return
         }
         // 公里数模式下轨迹已按目标长度扩展，直接跑一遍即可。
         let laps = usesKilometers ? 1 : (lapCount ?? 1)
         guard laps > 0 else {
-            timeline = []
+            setTimeline([])
             return
         }
-        timeline = ReplayTimeline.build(route, laps: laps,
-                                        scale: Double(appliedPace) / Double(geometryPace))
-        timelineCumulative = TrackMetrics.cumulativeDistances(timeline)
+        setTimeline(ReplayTimeline.build(route, laps: laps,
+                                         scale: Double(appliedPace) / Double(geometryPace)))
     }
 
     func refresh() { launch(.list) }
@@ -402,8 +421,9 @@ final class ConsoleModel: ObservableObject {
         if playing {
             continueSession(restarting: false)
         } else {
-            let from = seekIndex
             prepareNewTimeline()
+            // 重建后时间轴可能变短（比如圈数调小），旧的 seekIndex 要钳到新长度内。
+            let from = timeline.isEmpty ? 0 : min(max(0, seekIndex), timeline.count - 1)
             seekIndex = 0
             pointIndex = from == 0 ? nil : from
             elapsed = from == 0 ? 0 : timeline[from].offset
@@ -427,9 +447,8 @@ final class ConsoleModel: ObservableObject {
     private func prepareNewTimeline() {
         guard let route, let laps = lapCount else { return }
         appliedPace = ReplayPace.parse(paceInput) ?? geometryPace
-        timeline = ReplayTimeline.build(route, laps: laps,
-                                        scale: Double(appliedPace) / Double(geometryPace))
-        timelineCumulative = TrackMetrics.cumulativeDistances(timeline)
+        setTimeline(ReplayTimeline.build(route, laps: laps,
+                                         scale: Double(appliedPace) / Double(geometryPace)))
     }
 
     private func continueSession(restarting: Bool) {
@@ -454,7 +473,7 @@ final class ConsoleModel: ObservableObject {
     }
 
     func seek(to seconds: Double) {
-        guard canSeek else { return }
+        guard canSeek, !timeline.isEmpty else { return }
         var lo = 0
         var hi = timeline.count - 1
         while lo < hi {
@@ -624,7 +643,9 @@ final class ConsoleModel: ObservableObject {
             if let message = event.message { status = message }
         case "updated":
             if let pendingUpdate {
-                timeline = pendingUpdate.points
+                // 这里以前只换 timeline、不换累计距离，两个数组长度脱节，
+                // 紧接着的界面刷新就会在 simulatedMeters 越界崩溃。
+                setTimeline(pendingUpdate.points)
                 appliedPace = pendingUpdate.pace
             }
             pendingUpdate = nil
