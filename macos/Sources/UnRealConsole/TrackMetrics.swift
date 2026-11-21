@@ -2,7 +2,7 @@ import Foundation
 
 /// 回放长度的计量方式（互斥二选一）。
 ///
-/// 界面上是左侧带勾选框的两行，勾选哪一行就用哪种方式计量长度。
+/// 界面上是一个下拉框选「总圈数 / 公里数」，右侧填对应数值。
 enum LengthMode: String, CaseIterable, Identifiable {
     /// 按圈数：轨迹循环若干圈。
     case laps

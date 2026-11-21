@@ -111,13 +111,13 @@ private struct ConsoleView: View {
                 Picker("坐标基准", selection: Binding(get: { model.coordinateSystem },
                                                    set: { model.setCoordinateSystem($0) })) {
                     ForEach(CoordinateSystem.allCases) { system in
-                        Text(system.displayName).tag(system)
+                        Text(system.shortName).tag(system)
                     }
                 }
                 .disabled(!model.canEditSettings || model.trackSource == .bundled)
                 .help(model.trackSource == .bundled
                       ? "内置默认轨迹的基准固定为 WGS-84。导入自己的轨迹后才能选择基准。"
-                      : "轨迹文件使用的坐标系。设备只接受 WGS-84，选错会导致位置整体偏移。")
+                      : "轨迹文件使用的坐标系：\(model.coordinateSystem.displayName)。设备只接受 WGS-84，选错会导致位置整体偏移。")
                 Picker("上报口径", selection: Binding(get: { model.reportAlignment },
                                                   set: { model.setReportAlignment($0) })) {
                     ForEach(ReportAlignment.allCases) { alignment in
@@ -204,29 +204,47 @@ private struct ConsoleView: View {
                 })
     }
 
-    /// 长度计量方式：两行复选框，勾选哪一行就用哪种方式，互斥二选一。
+    /// 长度计量：下拉选「总圈数 / 公里数」，右侧填对应数值。
+    ///
+    /// 原来用两行复选框互斥，侧栏宽度不够时文字和输入框互相挤压；
+    /// 改成一行 Picker + 一个输入框，宽度稳定，也不会出现两个都勾选的歧义。
     private var lengthModeFields: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            // 总圈数
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Toggle("总圈数", isOn: Binding(
-                    get: { model.lengthMode == .laps },
-                    set: { checked in
-                        // 取消勾选时切到另一种方式，保证始终二选一。
-                        model.setLengthMode(checked ? .laps : .kilometers)
-                    }))
-                    .toggleStyle(.checkbox)
-                    .disabled(!model.canEditSettings)
-                TextField("1", text: Binding(get: { model.lapsInput }, set: { model.setLaps($0) }))
-                    .textFieldStyle(.roundedBorder)
-                    .monospacedDigit()
-                    .frame(width: 55)
-                    .accessibilityLabel("总圈数")
-                    .disabled(!model.canEditSettings || model.lengthMode != .laps)
+                Picker("长度计量", selection: Binding(
+                    get: { model.lengthMode },
+                    set: { model.setLengthMode($0) })) {
+                    ForEach(LengthMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 88)
+                .disabled(!model.canEditSettings)
+                .accessibilityLabel("长度计量方式")
+
+                if model.lengthMode == .laps {
+                    TextField("1", text: Binding(get: { model.lapsInput }, set: { model.setLaps($0) }))
+                        .textFieldStyle(.roundedBorder)
+                        .monospacedDigit()
+                        .frame(width: 50)
+                        .accessibilityLabel("总圈数")
+                        .disabled(!model.canEditSettings)
+                    Text("圈").foregroundStyle(.secondary)
+                } else {
+                    TextField("1.50", text: Binding(get: { model.targetKilometers },
+                                                    set: { model.setTargetKilometers($0) }))
+                        .textFieldStyle(.roundedBorder)
+                        .monospacedDigit()
+                        .frame(width: 64)
+                        .accessibilityLabel("目标公里数")
+                        .disabled(!model.canEditSettings)
+                    Text("km").foregroundStyle(.secondary)
+                }
             }
             if model.lengthMode == .laps {
                 if model.lapBelowCurrent {
-                    Text("总圈数至少为当前第 \(model.currentLap) 圈。")
+                    Text("至少为当前第 \(model.currentLap) 圈。")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 } else if model.lapCount == nil || model.lapLimitExceeded {
@@ -234,27 +252,7 @@ private struct ConsoleView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-            }
-
-            // 公里数
-            HStack(spacing: 8) {
-                Toggle("公里数", isOn: Binding(
-                    get: { model.lengthMode == .kilometers },
-                    set: { checked in
-                        model.setLengthMode(checked ? .kilometers : .laps)
-                    }))
-                    .toggleStyle(.checkbox)
-                    .disabled(!model.canEditSettings)
-                TextField("如 1.50", text: Binding(get: { model.targetKilometers },
-                                                set: { model.setTargetKilometers($0) }))
-                    .textFieldStyle(.roundedBorder)
-                    .monospacedDigit()
-                    .frame(width: 72)
-                    .accessibilityLabel("目标公里数")
-                    .disabled(!model.canEditSettings || model.lengthMode != .kilometers)
-                Text("km").foregroundStyle(.secondary)
-            }
-            if model.lengthMode == .kilometers && model.invalidKilometers {
+            } else if model.invalidKilometers {
                 Text("请输入 0 以上的公里数，最多 1000。")
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -283,23 +281,25 @@ private struct ConsoleView: View {
     }
 
 
-    private var calibrationFields: some View {        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("标定偏移")
+    private var calibrationFields: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("标定偏移（米）")
+            HStack(spacing: 6) {
                 TextField("东", text: eastBinding)
                     .textFieldStyle(.roundedBorder)
                     .monospacedDigit()
                     .frame(width: 62)
                     .accessibilityLabel("标定偏移东向，米")
-                Text("北")
+                Text("东").foregroundStyle(.secondary)
                 TextField("北", text: northBinding)
                     .textFieldStyle(.roundedBorder)
                     .monospacedDigit()
                     .frame(width: 62)
                     .accessibilityLabel("标定偏移北向，米")
+                Text("北").foregroundStyle(.secondary)
             }
             .disabled(!model.canEditSettings)
-            Text("单位米。用于把轨迹平移到服务端围栏的位置。")
+            Text("把轨迹平移到服务端围栏的位置。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
