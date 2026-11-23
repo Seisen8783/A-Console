@@ -4,9 +4,7 @@
 
 ## 下载与安装
 
-1. 从 [macOS 发布页](https://github.com/Seisen8783/UnReal/releases/tag/macos-v0.2.0) 下载 `NoReal-Console-0.2.0-macos-arm64.zip`。安装包面向 Apple 芯片 Mac，最低系统版本为 macOS 14。
-2. 解压后把 `NoReal Console.app` 拖入「应用程序」。该发布版早于改名，显示名仍是「NoReal 控制台」；从当前源码构建出来的 App 名为 `UnReal Console.app`。安装包使用临时签名，尚未经过 Apple 公证。若 macOS 显示验证提示，可查看 [Apple 的打开方式](https://support.apple.com/zh-cn/102445)，在确认下载来源后决定是否打开。
-3. [安装 uv](https://docs.astral.sh/uv/getting-started/installation/)。如果已有 Homebrew，可以运行 `brew install uv`。控制台首次启动设备桥接时会用 `uvx` 准备 Python 3.14 和 `pymobiledevice3 11.61.0`，初次下载需要联网。
+新版 DMG、旧版下载入口和从零开始的安装步骤见[仓库首页](../README.md)。
 
 ## 回放轨迹
 
@@ -47,7 +45,7 @@
 但时长有值（客户端自己记的）。
 
 「上报口径」选**回退一个基准**，就是预先做一次 GCJ-02 反解，让微信转回来正好等于文件原值。
-内置默认轨迹已按这个口径预置。
+默认口径为「原样」；应根据实际接收方的坐标处理方式选择。
 
 判断基准与计算偏移：
 

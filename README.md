@@ -1,154 +1,71 @@
 # UnReal macOS 控制台
 
-通过 USB 连接自己的测试 iPhone，在 Mac 上预览和回放 GPX、KMZ 或 KML。控制台可以定位到起点、拖动时间条跳转、从起点重播，并在暂停时保持当前位置。
+通过 USB 连接自己的测试 iPhone，在 Mac 上预览和回放 GPX、KMZ 或 KML 轨迹。控制台支持定位到轨迹起点、暂停与继续、调整回放配速和圈数，也可以查看预计完成时间。
 
-定位轨迹按配速展开成连续的坐标序列，注入设备的系统定位通道，让设备沿这条轨迹移动。手机上不用装任何 App，不用越狱，也不用开发者账号。
+手机无需安装额外 App、越狱或开发者账号。本工具用于定位与轨迹的开发测试，其他 App 是否显示模拟位置取决于各自的处理方式。
 
-| 平台 | 状态 | 入口 |
-| --- | --- | --- |
-| macOS 14+（Apple 芯片）+ iOS 17+ | 当前主线 | [下载 0.2.0](https://github.com/Seisen8783/UnReal/releases/tag/macos-v0.2.0) |
-| Android / HarmonyOS | 已移出仓库 | 代码留在本地工作区与历史提交中，见[范围变更](#范围变更2026-11-20) |
+## 一、下载 macOS 版本
 
-本工具仅供开发测试使用。
+- **新版 DMG（2.0.32）**：[下载 UnReal Console 安装包](https://github.com/Seisen8783/UnReal/releases/download/macos-v2.0.32/UnReal-Console-2.0.32-macOS.dmg)
+- **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/UnReal/releases/tag/macos-v0.2.0)
 
-## 工作原理
+新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。旧版名称为 NoReal Console，新版名称为 UnReal Console。
 
-```
-Mac 控制台（Swift）
-  └─ device_bridge.py（pymobiledevice3）
-       └─ USB / lockdown → RemoteXPC tunnel（iOS 17+）
-            └─ DVT LocationSimulation
-                 └─ CoreLocation（整机输出被替换）
-```
+## 二、从安装到回放
 
-原理、路线对比与限制的完整推导见 [`docs/iOS-定位模拟方案.md`](docs/iOS-定位模拟方案.md)。
+### 1. 安装控制台
 
-## 下载与安装
+1. 点击上方的新版 DMG 链接，等待下载完成。
+2. 在 Mac 的「下载」文件夹中双击 `UnReal-Console-2.0.32-macOS.dmg`。
+3. 把窗口里的 **UnReal Console** 图标拖到 **Applications（应用程序）** 文件夹图标上。
+4. 打开访达，在左侧点击「应用程序」，找到并打开 **UnReal Console**。
+5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
 
-1. 从 [macOS 发布页](https://github.com/Seisen8783/UnReal/releases/tag/macos-v0.2.0) 下载 `NoReal-Console-0.2.0-macos-arm64.zip`。安装包面向 Apple 芯片 Mac，最低系统版本为 macOS 14。
-2. 解压后把 `NoReal Console.app` 拖入「应用程序」。该发布版早于改名，显示名仍是「NoReal 控制台」；从当前源码构建出来的 App 名为 `UnReal Console.app`。安装包使用临时签名，尚未经过 Apple 公证。若 macOS 显示验证提示，可查看 [Apple 的打开方式](https://support.apple.com/zh-cn/102445)，在确认下载来源后决定是否打开。
-3. [安装 uv](https://docs.astral.sh/uv/getting-started/installation/)。如果已有 Homebrew，可以运行 `brew install uv`。控制台首次启动设备桥接时会用 `uvx` 准备 Python 3.14 和 `pymobiledevice3 11.61.0`，初次下载需要联网。
+### 2. 安装设备连接工具
 
-## 回放轨迹
-
-1. 用 USB 数据线连接 iPhone，解锁并信任 Mac。iPhone 需要运行 iOS 17 或更新版本并开启[开发者模式](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)。如果设置里没有该开关，可先在 Xcode 的设备窗口确认配对，再回到手机检查。
-2. 在控制台刷新设备列表并选中 iPhone。侧边栏「轨迹来源」默认是**默认路径**，会载入内置的校园跑走廊；选**本地导入**可以自己挑文件，也可以直接把文件拖进预览区。 [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx)
-3. 点击「定位到起点」可先在手机上核对位置，再点「开始回放」。播放中拖动时间条可跳到最接近的采样点。
-4. 点击「暂停」会保持当前位置。点「继续回放」从暂停点继续。**回放自然结束后设备位置会退回轨迹起点并保持**，要恢复真实定位点「恢复定位」。若拔线后出现「待恢复」，重新连接同一台设备，再点「恢复定位」。
-
-## 配速和圈数
-
-- 带完整时间戳的 GPX 或 KML `gx:Track` 按记录时间回放。只有坐标的 KML 或 KMZ 按输入配速生成时间，默认 **7:29 分/公里**。
-- 从多圈轨迹识别出闭合路线后，可以启用「使用单圈中线」。
-- **长度计量二选一**：一个下拉框选「总圈数 / 公里数」，右侧填对应数值。
-  - 切到「公里数」时，若输入框还是空的，会按当前总长度自动预填（如 `0.45`），免得面对空框。
-  - 切换轨迹后，若公里数是自动预填的（没手动改过），会按新轨迹重算。
-- 按公里数模拟时（精确到小数点后 2 位），轨迹不足目标长度会自动循环拼接，超出则按弧长精确截断。
-- 右上角除圈数外还会显示米数进度 `111.2m/400.0m`，超过一千米自动切换成 `1.23km/1.50km`。
-
-拼接不是简单复制点列表——真实轨迹常常不闭合（末点与首点差十几米），直接拼接会在圈与圈之间留下跳变。实现按累计弧长均匀重采样，每圈的起点严格落在轨迹的同一位置，圈与圈之间自然连续。
-
-- 暂停时可调整无原始时间戳轨迹的配速、长度计量方式和单圈中线的总圈数。续播时应用修改，已回放进度与暂停位置保留。总圈数至少要等于当前圈。
-
-## 坐标基准与标定偏移
-
-设备只接受 WGS-84。导入的轨迹若来自腾讯/高德/百度地图，基准就不是 WGS-84，需要在「坐标基准」里选对，否则整条轨迹会平移数百米。
-
-| 选项 | 什么时候选它 |
-| --- | --- |
-| WGS-84（GPS / OSM 导出） | 轨迹来自 GPS 记录、OpenStreetMap、Garmin 等 |
-| GCJ-02（腾讯 / 高德地图） | 在腾讯/高德地图上描点，或从这两家导出的数据 |
-| BD-09（百度地图） | 百度地图导出 |
-
-选错的代价是**整条轨迹平移一个基准偏移量**——国内通常数百米，滨州一带约 525 米。轨迹在地图上看着还在操场，实际已落在目标地点几百米之外。
-
-**内置默认轨迹的基准固定为 WGS-84**（它与 `core/assets/campus.geojson` 逐点一致，后者已声明为 WGS-84），不随这个选择改变；选本地导入后才能改基准。
-
-### 上报口径
-
-小程序用 `wx.startLocationUpdateBackground` 取定位（未指定 `type`，微信默认 **gcj02**），
-把设备交付的 WGS-84 转成 GCJ-02 后**原样上报**给服务端做校园围栏判定。
-服务端围栏若是 WGS-84，两者就差一个基准偏移量（滨州一带约 525 米）——
-结果就是明明在操场上跑，判定却是「非校园区域」，里程显示 `--km`、配速 `0'00"`（服务端未采信这段），但时长有值（客户端自己记的）。
-
-「上报口径」选**回退一个基准**，预先做一次 GCJ-02 反解，让微信转回来正好等于文件原值。
-内置默认轨迹已按这个口径预置。
-
-「标定偏移」是另一件事：基准相同但原点不同（服务端围栏按某个参考点标注，轨迹照着另一份地图描的）时，用它把整条轨迹平移到目标位置，单位是米（东/北）。
-
-归一化与偏移的顺序不能反：基准转换是非线性变换，必须先做；标定偏移是米制平移，必须在经纬度空间做。单圈中线也在归一化之后才拟合，否则会与点集错开一个基准。
-
-判断基准与计算偏移：
+控制台需要 `uv` 来准备连接 iPhone 的程序。打开 Mac 的「终端」（按下 `command + 空格`，输入“终端”并回车），运行：
 
 ```bash
-python3 tools/coordinate_probe.py 轨迹.kmz --probe 37.387769,117.982438   # 用已知地物判读
-python3 tools/coordinate_probe.py 轨迹.kmz --target 37.387769,117.982438  # 算所需偏移
+uv --version
 ```
 
-iOS 的定位模拟用于开发测试。其他 App 是否显示模拟坐标、如何计算里程或配速，取决于各自的处理逻辑。
+如果显示版本号，说明已经安装，可以继续。如果提示找不到命令，请按照 [uv 官方安装说明](https://docs.astral.sh/uv/getting-started/installation/)安装；如果已经安装 Homebrew，也可以运行 `brew install uv`。安装后关闭并重新打开控制台。首次连接时需要联网下载依赖，请耐心等待。
+
+### 3. 准备并连接 iPhone
+
+1. 使用支持数据传输的 USB 数据线将 iPhone 连接到 Mac。
+2. 解锁 iPhone。如果手机询问是否信任此电脑，点击「信任」并输入锁屏密码。
+3. 在 iPhone 打开「设置 → 隐私与安全性 → 开发者模式」，开启后按提示重启并确认。若看不到此选项，请先在 Mac 的 Xcode 设备窗口确认手机已配对，详见 [Apple 开发者模式说明](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)。
+4. 回到控制台，在「USB 设备」旁点击刷新按钮，然后选择你的 iPhone。
+
+### 4. 选择并回放轨迹
+
+1. 「轨迹来源」默认使用内置轨迹。要使用自己的轨迹，选择「本地导入」，然后选择 GPX、KML 或 KMZ 文件；也可以直接把文件拖入预览区域。
+2. 默认坐标基准为 **WGS-84**，上报口径为 **原样**。如果你确定导入文件使用其他坐标基准，再在侧栏修改；不确定时先用默认值检查位置。
+3. 点击「**接管定位权限**」，等待状态提示已定位到起点，再在手机上检查起点。
+4. 根据需要设置配速和「总圈数」或「公里数」，点击「**开始回放**」。右侧显示轨迹进度和预计完成时间。
+5. 回放中可点击「暂停」，需要时调整可编辑的配速或圈数，再点击「继续回放」；也可以拖动时间轴跳转。回放结束后，控制台会尝试把位置移回起点。
+6. 使用完毕后，点击「**重置位置**」，向 iPhone 发送恢复真实定位的请求。如果连接中断或状态显示待确认，请重新连接同一台 iPhone 后再重试，并在手机上检查位置。
+
+回放期间请保持 USB 连接。断线、设备重启或系统终止后，模拟位置是否继续保持无法保证。配速、轨迹数据和手机定位精度也可能影响实际显示。
+
+## 更多信息
+
+- [控制台详细说明](macos/README.md)
+- [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx)
+- [控制台方案与实现](docs/macOS-定位回放控制台方案.md)
+- [iOS 定位模拟方案](docs/iOS-定位模拟方案.md)
+- [历史 Android 版本](https://github.com/Seisen8783/UnReal/releases/tag/v1.0)
 
 ## 从源码构建
 
-在仓库根目录运行以下命令。也可以用 Xcode 打开 [macos/Package.swift](macos/Package.swift)。
-
 ```bash
 ./macos/build-app.sh
-swift test --package-path macos --disable-sandbox
+swift test --package-path macos
 uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v
-core/checks/run.sh
 ```
 
-受限终端里 SwiftPM 自带的沙箱会因 `sandbox_apply` 失败，需要加 `--disable-sandbox`；
-`build-app.sh` 检测到会自动退回无沙箱模式重试。
-
-构建产物位于 `macos/build/UnReal Console.app`。
-
-## 仓库结构
-
-```
-macos/    Swift 控制台 + Python 设备桥接 + Swift/Python 测试
-core/     平台无关的轨迹引擎（Kotlin/JVM）、轨迹样本与校园路网数据
-tools/    坐标基准诊断脚本、图标生成
-docs/     iOS 注入原理、macOS 控制台方案
-```
-
-`core/kotlin/com/unreal/core/` 是与平台无关的参考实现（纯 Kotlin，无 Android 依赖），macOS 端的 `Route.swift` / `KMLRoute.swift` / `LoopRoute.swift` 与它保持同一套采样语义：
-
-- `Route.sample(elapsedSeconds, durationSeconds)`：按秒采样，多圈循环时首尾相接。
-- `GpxWriter.build(route, options)`：把轨迹展开成合规 GPX——1 秒一点、时间戳单调递增、超过 20000 点自动降采样，供 iOS 开发者服务或 SDR 消费端回放。
-
-`core/assets/campus.geojson` 是 WGS‑84 的 GeoJSON FeatureCollection，每条 LineString 代表一条双向步行边，需要连通的路口必须作为各相关道路的端点，并共享完全相同的坐标。当前路网只有一条 644 点的走廊，多路口的连通与换乘只被合成图用例覆盖，接入真实网状数据前需要重新核对。
-
-`core/checks/run.sh` 校验默认轨迹的 644 点长度与配速换算、反向规划、路网连通性、跨经线插值，并输出 327 个采样点（需要 JDK + kotlinc）。
-
-## 版本号
-
-版本号存在仓库根的 `VERSION` 文件里。**每次构建自动 +0.0.01 并写回**，
-构建出来的包用的是递增前的版本号，所以界面上显示的版本与安装包始终一致。
-
-界面左上角产品名右侧会显示当前版本。要指定版本，改 `VERSION` 文件即可。
-
-图标由 `tools/icon/make_icon.swift` 生成（白底 + 蓝色圆 + 深色导航箭头），构建时自动合成 `.icns` 打进包里。
-
-## 已知限制
-
-- 模拟期间必须保持 USB 连接，拔线或异常退出会立即恢复真实定位。
-- iOS 15+ 的 `CLLocation.sourceInformation.isSimulatedBySoftware` 是这条路上唯一的检测点，目标 App 是否检查它需要自行实测。
-- 停止时必须发送恢复请求；没发出去就重启手机。
-- 模拟位置可能违反某些应用的服务条款，只用于自测。
-
-## 文档
-
-- [`docs/iOS-定位模拟方案.md`](docs/iOS-定位模拟方案.md) — 免越狱、免开发者账号的注入原理，三条路线对比，风险清单与验证清单。
-- [`docs/macOS-定位回放控制台方案.md`](docs/macOS-定位回放控制台方案.md) — 控制台界面与实现结构。
-
-## 范围变更（2026-11-20）
-
-仓库此前的主线是 Android 端：Kotlin App、Xposed 模块 `locbridge`、探针 `locprobe` 和配套的 adb 脚本。这些内容已从主分支移出，**代码仍完整保留在本地工作区**（见 `.gitignore` 中的忽略项），另有一份归档存在 `.backup/` 里。Android 版的历史构建仍可从 [Releases v1.0](https://github.com/Seisen8783/UnReal/releases/tag/v1.0) 下载。
-
-历史提交与 tag 未做任何改写，需要时可用本地 tag `backup/pre-android-removal-20261120` 取回。
-
-HarmonyOS 端此前已因平台限制移除（不向第三方开放定位注入，`ohos.permission.MOCK_LOCATION` 是系统权限），本次一并从工作区清出。
+构建产物位于 `macos/build/UnReal Console.app`。每次构建会递增仓库根目录中的 `VERSION`。
 
 ## 许可证
 
