@@ -106,8 +106,8 @@ class ReplayCommands:
         self.paused = paused
         self.changed.set()
 
-    def apply_update(self, restarting):
-        self.restart_with_update = restarting
+    def apply_update(self, restarting, hold=False):
+        self.restart_with_update = (restarting, hold)
         self.changed.set()
 
     def take(self):
@@ -130,11 +130,12 @@ async def replay(location, points, stop, on_write, commands=None, initial_index=
         if commands is not None:
             target, requested_pause, update = commands.take()
             if update is not None:
+                restarting, hold = update
                 try:
                     if not paused or last_index is None or target is not None:
                         raise ValueError("请等待暂停或跳转完成后再继续")
                     updated = commands.read_points()
-                    if not update and (
+                    if not restarting and (
                         last_index >= len(updated) or updated[last_index] != points[last_index]
                     ):
                         raise ValueError("更新后的暂停位置不一致")
@@ -142,10 +143,11 @@ async def replay(location, points, stop, on_write, commands=None, initial_index=
                     emit("update-error", message=f"回放设置未更新：{error}")
                 else:
                     points = updated
-                    if update:
+                    if restarting:
                         target = 0
-                    requested_pause = False
-                    emit("updated", index=None if update else last_index)
+                    if not hold:
+                        requested_pause = False
+                    emit("updated", index=None if restarting else last_index, paused=hold)
             if target is not None:
                 index = min(max(0, target), len(points) - 1)
                 start = loop.time() - points[index]["offset"]
@@ -313,8 +315,8 @@ async def main(args):
                 controls.set_paused(True)
             elif line == b"resume":
                 controls.set_paused(False)
-            elif line in (b"apply", b"apply-restart"):
-                controls.apply_update(line == b"apply-restart")
+            elif line in (b"apply", b"apply-restart", b"apply-hold"):
+                controls.apply_update(line == b"apply-restart", hold=line == b"apply-hold")
             elif line.startswith(b"seek "):
                 with suppress(ValueError):
                     controls.seek(int(line[5:]))

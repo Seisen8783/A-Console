@@ -251,6 +251,49 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([call.args[0] for call in device.set.await_args_list], [37.0, 38.0, 37.0, 37.0])
         device.clear.assert_not_awaited()
 
+    async def test_update_while_anchored_stays_paused_until_resume(self):
+        points = [
+            {"latitude": 37.0, "longitude": 117.0, "offset": 0},
+            {"latitude": 38.0, "longitude": 117.0, "offset": 0.01},
+        ]
+        updated = [points[0], {"latitude": 39.0, "longitude": 117.0, "offset": 0.01}]
+        controls = ReplayCommands(lambda: updated)
+        stop = asyncio.Event()
+        held = asyncio.Event()
+        applied = asyncio.Event()
+        device = type("Device", (), {"set": AsyncMock(), "clear": AsyncMock()})()
+
+        @asynccontextmanager
+        async def connect(_):
+            yield device
+
+        def event(kind, **values):
+            if kind == "mode" and values.get("message") == "已定位到起点":
+                held.set()
+            elif kind == "updated":
+                self.assertTrue(values["paused"])
+                applied.set()
+            elif kind == "point" and values.get("index") == 1:
+                stop.set()
+                controls.changed.set()
+
+        with patch("device_bridge.emit", side_effect=event):
+            task = asyncio.create_task(operate("anchor", "target", points, stop, connect, controls))
+            try:
+                await asyncio.wait_for(held.wait(), 1)
+                controls.apply_update(False, hold=True)
+                await asyncio.wait_for(applied.wait(), 1)
+                await asyncio.sleep(0.05)
+                device.set.assert_awaited_once_with(37.0, 117.0)
+                controls.set_paused(False)
+                await asyncio.wait_for(task, 1)
+                self.assertEqual(device.set.await_args_list[1].args, (39.0, 117.0))
+            finally:
+                if not task.done():
+                    stop.set()
+                    controls.changed.set()
+                    await task
+
     async def test_restore_command_has_no_route_argument(self):
         with patch("device_bridge.operate", new_callable=AsyncMock, return_value=0) as run:
             code = await main(Namespace(action="restore", serial="target"))

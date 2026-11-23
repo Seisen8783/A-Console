@@ -163,7 +163,7 @@ private struct ConsoleView: View {
                 lengthModeFields
                 if model.paused && model.settingsChanged && !model.invalidPace &&
                     model.lapCount != nil && !model.lapBelowCurrent && !model.lapLimitExceeded {
-                    Text("继续回放时应用新设置")
+                    Text("正在同步设置…")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

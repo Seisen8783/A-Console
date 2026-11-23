@@ -19,8 +19,10 @@ enum AppVersion {
         version.display
     }
 
-    /// 读取版本文件。包资源优先，其次读仓库里的 VERSION 文件。
+    /// 安装包以 Info.plist 为准，开发构建再回退到版本资源。
     private static func load() -> Version? {
+        if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+           let parsed = Version(text: version) { return parsed }
         if let url = Bundle.module.url(forResource: fileName, withExtension: nil),
            let text = try? String(contentsOf: url, encoding: .utf8) {
             return Version(text: text)

@@ -69,10 +69,11 @@ final class ConsoleModel: ObservableObject {
     private var termination: (() -> Void)?
     private var receivedResult = false
     private var lastDiagnostic: String?
+    private var settingsSync: DispatchWorkItem?
 
     var busy: Bool { operation != nil }
     var playing: Bool { operation == .play || operation == .anchor }
-    var canEditSettings: Bool { !busy || (playing && paused && !stopping && pendingUpdate == nil) }
+    var canEditSettings: Bool { !busy || (playing && paused && !stopping) }
     var showsLap: Bool { !usesKilometers && useCenterline && loop != nil && !timeline.isEmpty }
     var timelineLaps: Int {
         guard showsLap, let route, route.points.count > 1 else { return 1 }
@@ -328,6 +329,7 @@ final class ConsoleModel: ObservableObject {
     func setPace(_ text: String) {
         guard canEditSettings, let route, route.untimedSegments != nil else { return }
         paceInput = text
+        if playing { scheduleSettingsSync(); return }
         guard !busy, let seconds = ReplayPace.parse(text),
               seconds != geometryPace || seconds != appliedPace else { return }
         geometryPace = seconds
@@ -345,6 +347,7 @@ final class ConsoleModel: ObservableObject {
         guard canEditSettings else { return }
         lapsInput = value
         if !busy { rebuildTimeline() }
+        else if playing { scheduleSettingsSync() }
     }
 
     private func rebuildRoute() {
@@ -476,11 +479,27 @@ final class ConsoleModel: ObservableObject {
                                          scale: Double(appliedPace) / Double(geometryPace)))
     }
 
+    private func scheduleSettingsSync() {
+        settingsSync?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.playing, self.paused, self.pendingUpdate == nil,
+                  self.canApplySettings, !self.lapBelowCurrent, self.settingsChanged else { return }
+            self.applySessionSettings(restarting: false, resume: false)
+        }
+        settingsSync = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+
     private func continueSession(restarting: Bool) {
+        settingsSync?.cancel()
         if !settingsChanged && !restarting {
             send("resume")
             return
         }
+        applySessionSettings(restarting: restarting, resume: true)
+    }
+
+    private func applySessionSettings(restarting: Bool, resume: Bool) {
         guard let route, let trackFile, let laps = lapCount else { return }
         let nextPace = ReplayPace.parse(paceInput) ?? geometryPace
         let history = restarting ? timeline.prefix(0) : timeline.prefix((pointIndex ?? 0) + 1)
@@ -491,7 +510,7 @@ final class ConsoleModel: ObservableObject {
         do {
             try JSONEncoder().encode(updated).write(to: trackFile, options: .atomic)
             pendingUpdate = (updated, nextPace)
-            if !send(restarting ? "apply-restart" : "apply") { pendingUpdate = nil }
+            if !send(restarting ? "apply-restart" : (resume ? "apply" : "apply-hold")) { pendingUpdate = nil }
         } catch {
             self.error = "无法更新回放设置。\(error.localizedDescription)"
         }
@@ -680,9 +699,9 @@ final class ConsoleModel: ObservableObject {
                 pointIndex = nil
                 elapsed = 0
             }
-            paused = false
-            hasStarted = true
+            if event.paused == false { paused = false; hasStarted = true; elapsedUpdatedAt = Date() }
             error = nil
+            if paused && settingsChanged { scheduleSettingsSync() }
         case "update-error":
             pendingUpdate = nil
             error = event.message
@@ -714,6 +733,7 @@ final class ConsoleModel: ObservableObject {
         operation = nil
         trackFile = nil
         pendingUpdate = nil
+        settingsSync?.cancel()
         if hadSession && settingsChanged && canApplySettings {
             pointIndex = nil
             elapsed = 0
