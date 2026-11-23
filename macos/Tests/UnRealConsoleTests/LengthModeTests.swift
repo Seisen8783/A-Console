@@ -63,6 +63,18 @@ final class LengthModeTests: XCTestCase {
         XCTAssertTrue(model.invalidKilometers)
     }
 
+    func testEmptyAndExcessiveDistanceAreInvalid() {
+        let model = loadedModel()
+        model.setLengthMode(.kilometers)
+        model.setTargetKilometers("")
+        XCTAssertTrue(model.invalidKilometers)
+        XCTAssertNil(model.targetMeters)
+        model.setTargetKilometers("1001")
+        XCTAssertTrue(model.invalidKilometers)
+        XCTAssertNil(model.targetMeters)
+        model.setLengthMode(.laps)
+    }
+
     func testKilometersModeKeepsKilometersTextWhenSwitchingBack() {
         let model = loadedModel()
         model.setLengthMode(.kilometers)

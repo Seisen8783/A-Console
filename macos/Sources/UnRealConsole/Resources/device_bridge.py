@@ -96,6 +96,7 @@ class ReplayCommands:
         self.changed = asyncio.Event()
         self.target = None
         self.paused = None
+        self.reset_requested = False
 
     def seek(self, index):
         self.target = index
@@ -179,7 +180,13 @@ async def replay(location, points, stop, on_write, commands=None, initial_index=
         if at_end:
             # 自然结束：把设备位置退回起点并保持，不恢复真实定位。
             await return_to_start(location, points, on_write)
-            return False
+            if commands is None:
+                return False
+            index = 1
+            last_index = 0
+            paused = True
+            force_point = False
+            continue
 
         point = points[index]
         on_write()
@@ -200,14 +207,10 @@ async def return_to_start(location, points, on_write):
     if not points:
         return
     origin = points[0]
-    try:
-        on_write()
-        await asyncio.wait_for(location.set(origin["latitude"], origin["longitude"]), 10)
-        emit("point", index=0, elapsed=0)
-        emit("mode", paused=True, message="回放结束，已回到起点")
-    except (asyncio.TimeoutError, OSError):
-        # 写回起点失败不阻断流程，随后仍会恢复真实定位。
-        pass
+    on_write()
+    await asyncio.wait_for(location.set(origin["latitude"], origin["longitude"]), 10)
+    emit("point", index=0, elapsed=0)
+    emit("mode", paused=True, message="回放结束，已回到起点")
 
 
 async def operate(action, serial, points, stop, connect=location_session, commands=None, initial_index=0):
@@ -235,11 +238,14 @@ async def operate(action, serial, points, stop, connect=location_session, comman
                     # 自然结束（未中止）时，位置已退回起点，保持不动，不恢复真实定位。
                     keep_position = not stopped
             finally:
-                if pending and not keep_position:
-                    emit("state", message="正在发送恢复定位请求")
+                if action == "restore" or (commands is not None and commands.reset_requested):
+                    emit("state", message="正在重置位置")
                     await asyncio.wait_for(location.clear(), 8)
                     pending = False
                     emit("cleared")
+                elif pending and stopped:
+                    await return_to_start(location, points, mark_write)
+
     except Exception as error:
         emit("result", clean=not pending, ok=False, message=f"{type(error).__name__}：{error}")
         return 1
@@ -249,10 +255,10 @@ async def operate(action, serial, points, stop, connect=location_session, comman
     elif keep_position:
         message = "回放完成，位置已回到起点"
     elif stopped:
-        message = "已结束模拟，恢复请求已发送"
+        message = "已重置位置" if commands is not None and commands.reset_requested else "已尝试返回起点"
     else:
         message = "回放完成"
-    emit("result", clean=True, ok=True, message=message)
+    emit("result", clean=not pending, ok=True, message=message)
     return 0
 
 
@@ -300,7 +306,10 @@ async def main(args):
         while b"\n" in buffer:
             line, remainder = buffer.split(b"\n", 1)
             buffer[:] = remainder
-            if line == b"pause":
+            if line == b"reset":
+                controls.reset_requested = True
+                stop_playback()
+            elif line == b"pause":
                 controls.set_paused(True)
             elif line == b"resume":
                 controls.set_paused(False)

@@ -39,7 +39,7 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(device.set.await_args_list[-1].args, (37.0, 117.0))
         # 位置保持在起点，不应恢复真实定位。
         device.clear.assert_not_awaited()
-        self.assertTrue(events[-1]["clean"])
+        self.assertFalse(events[-1]["clean"])
         self.assertIn("回到起点", events[-1]["message"])
 
     async def test_stop_after_first_write_clears(self):
@@ -47,9 +47,42 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
         device = type("Device", (), {"set": AsyncMock(side_effect=lambda *_: stop.set()), "clear": AsyncMock()})()
         code, events = await self.run_operation(device, stop)
         self.assertEqual(code, 0)
-        device.set.assert_awaited_once()
+        self.assertEqual(device.set.await_count, 2)
+        device.clear.assert_not_awaited()
+        self.assertFalse(events[-1]["clean"])
+
+    async def test_return_to_start_failure_reports_error(self):
+        stop = asyncio.Event()
+        writes = 0
+        async def write(*_):
+            nonlocal writes
+            writes += 1
+            if writes == 1:
+                stop.set()
+            else:
+                raise ConnectionError("disconnected")
+        device = type("Device", (), {"set": AsyncMock(side_effect=write), "clear": AsyncMock()})()
+        code, events = await self.run_operation(device, stop)
+        self.assertEqual(code, 1)
+        self.assertFalse(events[-1]["ok"])
+        self.assertFalse(events[-1]["clean"])
+        device.clear.assert_not_awaited()
+
+    async def test_explicit_reset_clears_active_session(self):
+        stop = asyncio.Event()
+        controls = ReplayCommands()
+        async def reset_after_write(*_):
+            controls.reset_requested = True
+            stop.set()
+        device = type("Device", (), {"set": AsyncMock(side_effect=reset_after_write), "clear": AsyncMock()})()
+        @asynccontextmanager
+        async def connect(_):
+            yield device
+        points = [{"latitude": 37.0, "longitude": 117.0, "offset": 0}]
+        with redirect_stdout(StringIO()):
+            code = await operate("anchor", "target", points, stop, connect, controls)
+        self.assertEqual(code, 0)
         device.clear.assert_awaited_once()
-        self.assertTrue(events[-1]["clean"])
 
     async def test_stop_before_connect_does_not_write(self):
         stop = asyncio.Event()
@@ -98,17 +131,17 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
         with redirect_stdout(StringIO()):
             code = await asyncio.wait_for(operate("play", "target", points, stop, connect, controls), 2)
         self.assertEqual(code, 0)
-        self.assertEqual(visited, [37.0, 39.0, 37.0])
-        device.clear.assert_awaited_once()
+        self.assertEqual(visited, [37.0, 39.0, 37.0, 37.0])
+        device.clear.assert_not_awaited()
 
     async def test_anchor_sets_once_and_clears_on_stop(self):
         stop = asyncio.Event()
         device = type("Device", (), {"set": AsyncMock(side_effect=lambda *_: stop.set()), "clear": AsyncMock()})()
         code, events = await self.run_operation(device, stop, action="anchor")
         self.assertEqual(code, 0)
-        device.set.assert_awaited_once_with(37.0, 117.0)
-        device.clear.assert_awaited_once()
-        self.assertTrue(events[-1]["clean"])
+        self.assertEqual(device.set.await_count, 2)
+        device.clear.assert_not_awaited()
+        self.assertFalse(events[-1]["clean"])
 
     async def test_anchor_and_pause_resume_without_clearing_session(self):
         points = [
@@ -161,8 +194,8 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
                     await task
 
         self.assertEqual(connected, 1)
-        self.assertEqual([call.args[0] for call in device.set.await_args_list], [37.0, 38.0, 39.0])
-        device.clear.assert_awaited_once()
+        self.assertEqual([call.args[0] for call in device.set.await_args_list], [37.0, 38.0, 39.0, 37.0])
+        device.clear.assert_not_awaited()
 
     async def test_paused_update_continues_from_same_point_within_one_session(self):
         points = [
@@ -215,8 +248,8 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
                     await task
 
         self.assertEqual(connection_count, 1)
-        self.assertEqual([call.args[0] for call in device.set.await_args_list], [37.0, 38.0, 37.0])
-        device.clear.assert_awaited_once()
+        self.assertEqual([call.args[0] for call in device.set.await_args_list], [37.0, 38.0, 37.0, 37.0])
+        device.clear.assert_not_awaited()
 
     async def test_restore_command_has_no_route_argument(self):
         with patch("device_bridge.operate", new_callable=AsyncMock, return_value=0) as run:

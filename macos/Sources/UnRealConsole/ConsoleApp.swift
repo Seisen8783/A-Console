@@ -49,6 +49,7 @@ private struct ConsoleView: View {
     }
 
     private var sidebar: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Label("UnReal", systemImage: "location.circle.fill")
@@ -114,7 +115,7 @@ private struct ConsoleView: View {
                         Text(system.shortName).tag(system)
                     }
                 }
-                .disabled(!model.canEditSettings || model.trackSource == .bundled)
+                .disabled(model.busy || model.trackSource == .bundled)
                 .help(model.trackSource == .bundled
                       ? "内置默认轨迹的基准固定为 WGS-84。导入自己的轨迹后才能选择基准。"
                       : "轨迹文件使用的坐标系：\(model.coordinateSystem.displayName)。设备只接受 WGS-84，选错会导致位置整体偏移。")
@@ -124,8 +125,14 @@ private struct ConsoleView: View {
                         Text(alignment.displayName).tag(alignment)
                     }
                 }
-                .disabled(!model.canEditSettings)
+                .disabled(model.busy)
                 .help(model.reportAlignment.help)
+                if let error = model.reportLandingErrorMeters {
+                    Text("估算上报坐标与轨迹相差 \(Int(error.rounded())) 米")
+                        .font(.caption)
+                        .foregroundStyle(error > 50 ? .orange : .secondary)
+                        .help("假设接收方将坐标转换为 GCJ-02 时的估算；实际处理方式需独立验证。")
+                }
                 calibrationFields
                 if model.route?.untimedSegments != nil {
                     HStack {
@@ -167,20 +174,21 @@ private struct ConsoleView: View {
 
             Spacer()
             if let serial = model.pendingID, !model.busy {
-                Label("设备 …\(serial.suffix(5)) 待恢复", systemImage: "exclamationmark.triangle")
+                Label("设备 …\(serial.suffix(5)) 定位状态待确认", systemImage: "exclamationmark.triangle")
                     .font(.callout)
                     .foregroundStyle(.orange)
             }
-            Button { model.locateStart() } label: { Label("定位到起点", systemImage: "mappin.circle") }
+            Button { model.locateStart() } label: { Label("接管定位权限", systemImage: "mappin.circle") }
                 .buttonStyle(.borderedProminent)
                 .foregroundStyle(.white)
                 .disabled(!model.canAnchor)
-            Button { model.restore() } label: { Label("恢复定位", systemImage: "location.slash") }
+            Button { model.restore() } label: { Label("重置位置", systemImage: "location.slash") }
                 .buttonStyle(.borderedProminent)
                 .foregroundStyle(.white)
                 .disabled(!model.canRestore)
         }
         .padding(22)
+        }
         .frame(width: 255)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .background(.regularMaterial)
@@ -198,8 +206,6 @@ private struct ConsoleView: View {
                         model.loadBundledTrack()
                     case .localFile:
                         importing = true
-                        // 保持选中态为「本地导入」，让用户看清当前用的是导入的文件。
-                        model.trackSource = .localFile
                     }
                 })
     }
@@ -220,7 +226,7 @@ private struct ConsoleView: View {
                 }
                 .labelsHidden()
                 .frame(width: 88)
-                .disabled(!model.canEditSettings)
+                .disabled(model.busy)
                 .accessibilityLabel("长度计量方式")
 
                 if model.lengthMode == .laps {
@@ -238,7 +244,7 @@ private struct ConsoleView: View {
                         .monospacedDigit()
                         .frame(width: 64)
                         .accessibilityLabel("目标公里数")
-                        .disabled(!model.canEditSettings)
+                        .disabled(model.busy)
                     Text("km").foregroundStyle(.secondary)
                 }
             }
@@ -298,7 +304,7 @@ private struct ConsoleView: View {
                     .accessibilityLabel("标定偏移北向，米")
                 Text("北").foregroundStyle(.secondary)
             }
-            .disabled(!model.canEditSettings)
+            .disabled(model.busy)
             Text("把轨迹平移到服务端围栏的位置。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -337,6 +343,14 @@ private struct ConsoleView: View {
                 Text("轨迹回放").font(.title2.weight(.semibold))
                 Spacer()
                 if let route = model.route {
+                    if model.playing && model.hasStarted && !model.paused {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            Text("预计 \(context.date.addingTimeInterval(max(0, model.totalDuration - model.elapsed - context.date.timeIntervalSince(model.elapsedUpdatedAt))), format: .dateTime.hour().minute()) 完成")
+                        }
+                        .font(.callout)
+                    } else if model.playing && model.paused && model.hasStarted {
+                        Text("已暂停，预计时间待续播").font(.callout).foregroundStyle(.secondary)
+                    }
                     if model.showsLap {
                         Text("第 \(model.currentLap) / \(model.timelineLaps) 圈")
                             .fontWeight(.semibold)

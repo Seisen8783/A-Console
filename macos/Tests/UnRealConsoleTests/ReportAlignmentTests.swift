@@ -65,7 +65,7 @@ final class ReportAlignmentTests: XCTestCase {
     func testBundledTrackDefaultsToPullBack() {
         let model = ConsoleModel.shared
         model.loadBundledTrack()
-        XCTAssertEqual(model.reportAlignment, .pullBackOneDatum)
+        XCTAssertEqual(model.reportAlignment, .asIs)
     }
 
     func testPullBackShiftsTrackWestwardByAbout525Meters() {

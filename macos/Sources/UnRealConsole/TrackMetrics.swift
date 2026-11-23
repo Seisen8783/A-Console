@@ -46,9 +46,9 @@ enum ReportAlignment: String, CaseIterable, Identifiable {
     var help: String {
         switch self {
         case .asIs:
-            return "注入值经微信转换后原样上报。服务端围栏与小程序上报同基准时用这个。"
+            return "注入值经微信转换后原样上报。服务端围栏与小程序上报同基准时用这个。\n上报落点会整体偏一个基准（滨州一带约 526 米）。"
         case .pullBackOneDatum:
-            return "微信把 WGS-84 转成 GCJ-02 后才上报。服务端围栏若是 WGS-84，需预先回退一次，\n否则会差一个基准偏移量（滨州一带约 525 米），导致明明在操场却判「非校园区域」。"
+            return "微信把 WGS-84 转成 GCJ-02 后才上报。服务端围栏若是 WGS-84，需预先回退一次，\n否则会差一个基准偏移量（滨州一带约 525 米），导致明明在操场却判「非校园区域」。\n\n它与上面的「坐标基准」不是重复动作：坐标基准回答「文件里这个数对应地球上哪里」，\n回退一个基准回答「设备该写什么数，微信转回来才落在真实位置上」。两者叠加后上报值正好是真实位置。"
         }
     }
 }
@@ -174,9 +174,8 @@ enum TrackMetrics {
             : single * paceSecondsPerKilometer / 1000
 
         // 采样步长与原轨迹疏密相当，避免凭空加密。
-        let step = max(1.0, single / Double(max(1, points.count - 1)))
-        let sampleCount = Int(ceil(target / step))
-        guard sampleCount > 1 else { return points }
+        let step = max(1.0, single / Double(max(1, points.count - 1)), target / 199_999)
+        let sampleCount = max(1, Int(ceil(target / step)))
 
         var result: [TrackPoint] = []
         result.reserveCapacity(sampleCount + 1)

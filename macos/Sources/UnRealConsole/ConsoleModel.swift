@@ -35,7 +35,12 @@ final class ConsoleModel: ObservableObject {
     @Published private(set) var lapsInput = "1"
     @Published var lengthMode: LengthMode = .laps
     @Published var targetKilometers: String = ""
-    @Published var coordinateSystem: CoordinateSystem = .gcj02
+    /// 轨迹文件使用的坐标基准。
+    ///
+    /// 默认 WGS-84：绝大多数 GPX/KML（GPS 手表、Garmin、Strava、OSM 导出）都是 WGS-84。
+    /// 曾默认 GCJ-02，那样一份 WGS-84 的文件会被整体平移约 525 米——
+    /// 症状与「非校园区域」一模一样，极难分辨。
+    @Published var coordinateSystem: CoordinateSystem = .wgs84
     @Published var reportAlignment: ReportAlignment = .asIs
     @Published var calibration = CalibrationOffset.zero
     @Published var trackSource: TrackSource = .bundled
@@ -53,6 +58,7 @@ final class ConsoleModel: ObservableObject {
     @Published private(set) var error: String?
     @Published private(set) var pointIndex: Int?
     @Published private(set) var elapsed: Double = 0
+    @Published private(set) var elapsedUpdatedAt = Date()
     @Published private(set) var pendingID: String?
     @Published private(set) var stopping = false
     @Published private var operation: BridgeOperation?
@@ -67,7 +73,7 @@ final class ConsoleModel: ObservableObject {
     var busy: Bool { operation != nil }
     var playing: Bool { operation == .play || operation == .anchor }
     var canEditSettings: Bool { !busy || (playing && paused && !stopping && pendingUpdate == nil) }
-    var showsLap: Bool { useCenterline && loop != nil && !timeline.isEmpty }
+    var showsLap: Bool { !usesKilometers && useCenterline && loop != nil && !timeline.isEmpty }
     var timelineLaps: Int {
         guard showsLap, let route, route.points.count > 1 else { return 1 }
         return (timeline.count - 1) / (route.points.count - 1)
@@ -81,7 +87,7 @@ final class ConsoleModel: ObservableObject {
         (route?.untimedSegments != nil && ReplayPace.parse(paceInput) != appliedPace) || lapCount != timelineLaps
     }
 
-    var canAnchor: Bool { !busy && pendingID == nil && !deviceID.isEmpty && !timeline.isEmpty }
+    var canAnchor: Bool { !busy && (pendingID == nil || pendingID == deviceID) && !deviceID.isEmpty && !timeline.isEmpty }
     var canRestore: Bool { playing ? !stopping : !busy && !restoreDeviceID.isEmpty }
     var lapCount: Int? {
         // 公里数模式优先，此时「圈数」由目标长度决定。
@@ -112,7 +118,7 @@ final class ConsoleModel: ObservableObject {
     var canRestart: Bool {
         playing ? !stopping && pendingUpdate == nil && (!paused || canApplySettings) : canPlay
     }
-    private var canApplySettings: Bool { !invalidPace && lapCount != nil && !lapLimitExceeded && pendingUpdate == nil }
+    private var canApplySettings: Bool { !invalidPace && !invalidKilometers && lapCount != nil && !lapLimitExceeded && pendingUpdate == nil }
     var invalidPace: Bool { route?.untimedSegments != nil && ReplayPace.parse(paceInput) == nil }
     var restoreDeviceID: String { pendingID ?? deviceID }
 
@@ -121,6 +127,7 @@ final class ConsoleModel: ObservableObject {
         guard lengthMode == .kilometers else { return nil }
         let trimmed = targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite, value > 0 else { return nil }
+        guard value <= 1000 else { return nil }
         return (value * 1000).rounded()
     }
 
@@ -128,7 +135,7 @@ final class ConsoleModel: ObservableObject {
     var invalidKilometers: Bool {
         guard lengthMode == .kilometers else { return false }
         let trimmed = targetKilometers.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return false }
+        guard !trimmed.isEmpty else { return true }
         guard let value = Double(trimmed), value.isFinite else { return true }
         return value <= 0 || value > 1000
     }
@@ -222,6 +229,24 @@ final class ConsoleModel: ObservableObject {
         trackSource == .bundled ? Self.bundledCoordinateSystem : coordinateSystem
     }
 
+    /// 上报落点与真实位置之间的偏差（米）。
+    ///
+    /// 上报值 = 微信对注入值做的那一次 WGS-84 → GCJ-02 转换。
+    /// 「原样」口径下两者整体差一个基准（滨州一带约 526 米）；
+    /// 「回退一个基准」下应当归零——这正是这个读数存在的意义：
+    /// 把「会不会多出一次转换」从猜变成看得见的数字。
+    var reportLandingErrorMeters: Double? {
+        guard let first = route?.points.first, let origin = originalRoute?.points.first else { return nil }
+        // 真实位置：文件原值按其基准归一化到 WGS-84，再叠加标定偏移。
+        let truePoint = calibration.apply(to: effectiveCoordinateSystem.normalized(origin))
+        // 上报落点：微信把注入值转成 GCJ-02 之后的样子。
+        let reported = CoordinateTransform.wgs84ToGCJ02(longitude: first.longitude,
+                                                         latitude: first.latitude)
+        return TrackMetrics.meters(truePoint,
+                                   TrackPoint(latitude: reported.1, longitude: reported.0,
+                                              offset: truePoint.offset))
+    }
+
     /// 载入内置默认轨迹。
     func loadBundledTrack() {
         guard !busy else { return }
@@ -231,13 +256,13 @@ final class ConsoleModel: ObservableObject {
             return
         }
         trackSource = .bundled
-        // 内置轨迹是给「校园跑」这个小程序用的，按它的上报口径预置。
-        reportAlignment = .pullBackOneDatum
         load(url)
         status = "已载入默认轨迹"
     }
 
     /// 载入本地导入的轨迹，沿用用户选择的坐标基准。
+    ///
+    /// 导入时保留当前选择的上报口径。
     func loadLocalTrack(_ url: URL) {
         trackSource = .localFile
         load(url)
@@ -247,7 +272,7 @@ final class ConsoleModel: ObservableObject {
     ///
     /// 内置默认轨迹的基准是固定的（WGS-84），此时改选择不会有效果。
     func setCoordinateSystem(_ value: CoordinateSystem) {
-        guard canEditSettings, value != coordinateSystem else { return }
+        guard !busy, value != coordinateSystem else { return }
         coordinateSystem = value
         guard trackSource != .bundled else { return }
         rebuildRoute()
@@ -255,7 +280,7 @@ final class ConsoleModel: ObservableObject {
 
     /// 位置标定偏移（米）。用于把整条轨迹平移到目标位置。
     func setCalibration(eastMeters: Double, northMeters: Double) {
-        guard canEditSettings else { return }
+        guard !busy else { return }
         let updated = CalibrationOffset(eastMeters: eastMeters, northMeters: northMeters)
         guard updated != calibration else { return }
         calibration = updated
@@ -264,7 +289,7 @@ final class ConsoleModel: ObservableObject {
 
     /// 目标公里数。留空表示按圈数走。
     func setTargetKilometers(_ text: String) {
-        guard canEditSettings else { return }
+        guard !busy else { return }
         guard text != targetKilometers else { return }
         targetKilometers = text
         // 用户手动改过之后，换轨迹不再自动覆盖。
@@ -276,7 +301,7 @@ final class ConsoleModel: ObservableObject {
 
     /// 切换上报口径（原样 ↔ 回退一个基准）。
     func setReportAlignment(_ alignment: ReportAlignment) {
-        guard canEditSettings, alignment != reportAlignment else { return }
+        guard !busy, alignment != reportAlignment else { return }
         reportAlignment = alignment
         rebuildRoute()
     }
@@ -285,7 +310,7 @@ final class ConsoleModel: ObservableObject {
     /// 切到公里数时，若输入框还是空的，按当前总长度自动填一个值，
     /// 免得用户面对空框不知道该填多少。
     func setLengthMode(_ mode: LengthMode) {
-        guard canEditSettings, mode != lengthMode else { return }
+        guard !busy, mode != lengthMode else { return }
         // 先按旧模式算出总长度，再切换——否则 lapCount 已经变了，预填值会偏小。
         let previousTotal = totalMeters
         lengthMode = mode
@@ -503,7 +528,9 @@ final class ConsoleModel: ObservableObject {
     func restore() {
         guard canRestore else { return }
         if playing {
-            endSimulation()
+            stopping = true
+            status = "正在重置位置"
+            if !send("reset") { stopping = false }
         } else {
             launch(.restore, serial: restoreDeviceID)
         }
@@ -529,7 +556,7 @@ final class ConsoleModel: ObservableObject {
     private func endSimulation() {
         guard playing, !stopping else { return }
         stopping = true
-        status = "正在恢复定位"
+        status = "正在返回轨迹起点"
         try? input?.close()
         input = nil
     }
@@ -638,7 +665,7 @@ final class ConsoleModel: ObservableObject {
         case "mode":
             if let value = event.paused {
                 paused = value
-                if !value { hasStarted = true }
+                if !value { hasStarted = true; elapsedUpdatedAt = Date() }
             }
             if let message = event.message { status = message }
         case "updated":
@@ -662,11 +689,12 @@ final class ConsoleModel: ObservableObject {
         case "point":
             pointIndex = event.index
             elapsed = event.elapsed ?? 0
+            elapsedUpdatedAt = Date()
         case "cleared":
             recordPending(nil)
         case "result":
             receivedResult = true
-            if operation != .list && event.clean == true { recordPending(nil) }
+            if operation == .restore && event.clean == true { recordPending(nil) }
             if event.ok == true {
                 status = event.message ?? "操作完成"
             } else {
