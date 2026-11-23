@@ -6,7 +6,7 @@
 
 ## 一、下载 macOS 版本
 
-- **新版 DMG（2.0.34）**：[下载 UnReal Console 安装包](https://github.com/Seisen8783/UnReal/releases/download/macos-v2.0.34/UnReal-Console-2.0.34-macOS.dmg)
+- **新版 DMG（2.0.36）**：[下载 UnReal Console 安装包](https://github.com/Seisen8783/UnReal/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/UnReal/releases/tag/macos-v0.2.0)
 
 新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。旧版名称为 NoReal Console，新版名称为 UnReal Console。
@@ -16,7 +16,7 @@
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `UnReal-Console-2.0.34-macOS.dmg`。
+2. 在 Mac 的「下载」文件夹中双击 `UnReal-Console-2.0.36-macOS.dmg`。
 3. 把窗口里的 **UnReal Console** 图标拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开 **UnReal Console**。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
@@ -47,7 +47,7 @@ uv --version
 5. 回放中可点击「暂停」，需要时调整可编辑的配速或圈数，有效设置会自动同步并更新总时长，再点击「继续回放」；也可以拖动时间轴跳转。回放结束后，控制台会尝试把位置移回起点。
 6. 使用完毕后，点击「**重置位置**」，向 iPhone 发送恢复真实定位的请求。如果连接中断或状态显示待确认，请重新连接同一台 iPhone 后再重试，并在手机上检查位置。
 
-回放期间请保持 USB 连接。断线、设备重启或系统终止后，模拟位置是否继续保持无法保证。配速、轨迹数据和手机定位精度也可能影响实际显示。
+回放期间请保持 USB 连接。开发者服务连接短暂中断时，控制台会尝试重连同一台 iPhone，从中断处继续。如果重连失败，请检查数据线、解锁手机后重新连接。配速、轨迹数据和手机定位精度也可能影响实际显示。
 
 ## 更多信息
 

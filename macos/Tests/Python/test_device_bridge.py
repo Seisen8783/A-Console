@@ -8,6 +8,8 @@ import sys
 import unittest
 from unittest.mock import AsyncMock, patch
 
+from pymobiledevice3.exceptions import ConnectionTerminatedError
+
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Sources/UnRealConsole/Resources"))
 from device_bridge import ReplayCommands, main, operate
@@ -102,6 +104,33 @@ class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
         code, events = await self.run_operation(device, asyncio.Event())
         self.assertEqual(code, 1)
         self.assertFalse(events[-1]["clean"])
+
+    async def test_closed_channel_retries_same_point_without_rewinding(self):
+        devices = [
+            type("Device", (), {"set": AsyncMock(side_effect=[None, ConnectionTerminatedError("closed")])})(),
+            type("Device", (), {"set": AsyncMock()})(),
+        ]
+        connections = []
+
+        @asynccontextmanager
+        async def connect(serial):
+            device = devices[len(connections)]
+            connections.append(serial)
+            yield device
+
+        points = [dict(latitude=37.0 + i / 1000, longitude=118.0, offset=0) for i in range(3)]
+        output = StringIO()
+        with redirect_stdout(output), patch("device_bridge.wait_for_stop", return_value=False):
+            code = await operate("play", "target", points, asyncio.Event(), connect)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(connections, ["target", "target"])
+        self.assertEqual(
+            [call.args[0] for call in devices[1].set.await_args_list],
+            [points[1]["latitude"], points[2]["latitude"], points[0]["latitude"]],
+        )
+        events = [json.loads(line) for line in output.getvalue().splitlines()]
+        self.assertEqual([event["index"] for event in events if event["kind"] == "point"], [0, 1, 2, 0])
 
     async def test_seek_forward_then_restart_in_same_session(self):
         controls = ReplayCommands()

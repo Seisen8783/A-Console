@@ -10,7 +10,12 @@ import signal
 import sys
 
 from pymobiledevice3 import usbmux
-from pymobiledevice3.exceptions import AlreadyMountedError, InvalidServiceError
+from pymobiledevice3.exceptions import (
+    AlreadyMountedError, ConnectionFailedError, ConnectionTerminatedError,
+    DeviceNotFoundError, InvalidServiceError, NoDeviceConnectedError,
+    NotPairedError, NotTrustedError, PairingDialogResponsePendingError,
+    PasswordRequiredError, UserDeniedPairingError,
+)
 from pymobiledevice3.lockdown import create_using_usbmux
 from pymobiledevice3.remote.rsd_tunnel import PreferredRsdTunnel
 from pymobiledevice3.services.dvt.instruments.dvt_provider import DvtProvider
@@ -46,7 +51,7 @@ async def list_usb_devices():
 @asynccontextmanager
 async def location_session(serial):
     if not any(device.is_usb and device.serial == serial for device in await usbmux.list_devices()):
-        raise RuntimeError("找不到所选 USB 设备，请重新连接。")
+        raise DeviceNotFoundError(serial, "找不到所选 USB 设备，请重新连接。")
     emit("state", message="检查设备信任和开发者模式")
     async with await asyncio.wait_for(
         create_using_usbmux(serial=serial, connection_type="USB", pair_timeout=25), 35
@@ -87,6 +92,58 @@ async def wait_for_stop(stop, delay):
     except asyncio.TimeoutError:
         return False
     return True
+
+
+CONNECTION_ERRORS = (
+    ConnectionFailedError, ConnectionTerminatedError, DeviceNotFoundError,
+    NoDeviceConnectedError, ConnectionError, TimeoutError,
+)
+
+
+class LocationConnection:
+    """Own the developer connection and retry a command once on a fresh channel."""
+
+    def __init__(self, serial, connect):
+        self.serial = serial
+        self.connect = connect
+        self.stack = AsyncExitStack()
+        self.location = None
+
+    async def open(self, timeout):
+        async with asyncio.timeout(timeout):
+            self.location = await self.stack.enter_async_context(self.connect(self.serial))
+
+    async def close(self):
+        self.location = None
+        async with asyncio.timeout(3):
+            await self.stack.aclose()
+
+    async def reconnect(self):
+        emit("state", message="设备连接中断，正在重新连接同一台 iPhone")
+        with suppress(*CONNECTION_ERRORS):
+            await self.close()
+        try:
+            await self.open(12)
+        except CONNECTION_ERRORS:
+            await asyncio.sleep(1)
+            await self.open(12)
+
+    async def request(self, method, *args, timeout, stop=None):
+        async def send():
+            await asyncio.wait_for(getattr(self.location, method)(*args), timeout)
+
+        if stop is not None and stop.is_set():
+            return None
+        started = asyncio.get_running_loop().time()
+        try:
+            await send()
+            return 0.0
+        except CONNECTION_ERRORS:
+            await self.reconnect()
+            if stop is not None and stop.is_set():
+                return None
+            await send()
+            return asyncio.get_running_loop().time() - started
 
 
 class ReplayCommands:
@@ -192,7 +249,16 @@ async def replay(location, points, stop, on_write, commands=None, initial_index=
 
         point = points[index]
         on_write()
-        await asyncio.wait_for(location.set(point["latitude"], point["longitude"]), 10)
+        recovery_delay = await location.request(
+            "set", point["latitude"], point["longitude"], timeout=10, stop=stop,
+        )
+        if recovery_delay is None:
+            break
+        if recovery_delay:
+            start += recovery_delay
+            if not (anchor and last_index is None and paused):
+                message = "已重连，保持暂停" if paused else "已重连，正在回放"
+                emit("mode", paused=paused, message=message)
         emit("point", index=index, elapsed=point["offset"])
         if anchor and last_index is None and paused:
             emit("mode", paused=True, message="已定位到起点")
@@ -210,7 +276,7 @@ async def return_to_start(location, points, on_write):
         return
     origin = points[0]
     on_write()
-    await asyncio.wait_for(location.set(origin["latitude"], origin["longitude"]), 10)
+    await location.request("set", origin["latitude"], origin["longitude"], timeout=10)
     emit("point", index=0, elapsed=0)
     emit("mode", paused=True, message="回放结束，已回到起点")
 
@@ -224,13 +290,17 @@ async def operate(action, serial, points, stop, connect=location_session, comman
         nonlocal pending
         pending = True
 
+    location = LocationConnection(serial, connect)
     try:
         async with AsyncExitStack() as stack:
             if action in ("play", "anchor") and stop.is_set():
                 emit("result", clean=True, ok=True, message="已停止回放")
                 return 0
-            async with asyncio.timeout(180):
-                location = await stack.enter_async_context(connect(serial))
+            stack.push_async_callback(location.close)
+            try:
+                await location.open(180)
+            except CONNECTION_ERRORS:
+                await location.reconnect()
             try:
                 if action in ("play", "anchor"):
                     if action == "play":
@@ -242,14 +312,23 @@ async def operate(action, serial, points, stop, connect=location_session, comman
             finally:
                 if action == "restore" or (commands is not None and commands.reset_requested):
                     emit("state", message="正在重置位置")
-                    await asyncio.wait_for(location.clear(), 8)
+                    await location.request("clear", timeout=8)
                     pending = False
                     emit("cleared")
                 elif pending and stopped:
                     await return_to_start(location, points, mark_write)
 
     except Exception as error:
-        emit("result", clean=not pending, ok=False, message=f"{type(error).__name__}：{error}")
+        if isinstance(error, (DeviceNotFoundError, NoDeviceConnectedError)):
+            message = "找不到这台 iPhone。请检查 USB 数据线和连接，再刷新设备列表。"
+        elif isinstance(error, (NotPairedError, NotTrustedError, PairingDialogResponsePendingError,
+                                PasswordRequiredError, UserDeniedPairingError)):
+            message = "请解锁 iPhone，在手机上确认「信任此电脑」后重试。"
+        elif isinstance(error, CONNECTION_ERRORS):
+            message = "iPhone 开发者服务连接失败。请检查 USB 连接，解锁手机后重试。"
+        else:
+            message = str(error)
+        emit("result", clean=not pending, ok=False, message=f"{message}（{type(error).__name__}）")
         return 1
 
     if action == "restore":
