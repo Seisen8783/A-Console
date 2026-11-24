@@ -6,8 +6,10 @@ from contextlib import AsyncExitStack, asynccontextmanager, suppress
 import json
 import os
 from pathlib import Path
+from multiprocessing import freeze_support
 import signal
 import sys
+import threading
 
 from pymobiledevice3 import usbmux
 from pymobiledevice3.exceptions import (
@@ -32,7 +34,7 @@ async def list_usb_devices():
     for device in await usbmux.list_devices():
         if not device.is_usb:
             continue
-        info = dict(id=device.serial, name="USB 设备", version="", detail="请解锁设备并信任此 Mac")
+        info = dict(id=device.serial, name="USB 设备", version="", detail="请解锁设备并信任此电脑")
         try:
             async with await asyncio.wait_for(
                 create_using_usbmux(serial=device.serial, connection_type="USB", autopair=False), 3
@@ -41,7 +43,7 @@ async def list_usb_devices():
                 if values.get("DeviceClass") != "iPhone":
                     continue
                 info.update(name=lockdown.display_name, version=lockdown.product_version,
-                            detail="USB 已连接" if lockdown.paired else "请解锁设备并信任此 Mac")
+                            detail="USB 已连接" if lockdown.paired else "请解锁设备并信任此电脑")
         except Exception:
             pass
         devices.append(info)
@@ -58,7 +60,10 @@ async def location_session(serial):
     ) as lockdown:
         if lockdown.all_values.get("DeviceClass") != "iPhone":
             raise RuntimeError("请选择 iPhone。")
-        if int(lockdown.product_version.split(".")[0]) < 17:
+        version = tuple(map(int, lockdown.product_version.split(".")[:2]))
+        if sys.platform == "win32" and version < (17, 4):
+            raise RuntimeError("Windows 控制台需要 iOS 17.4 或以上。")
+        if version < (17,):
             raise RuntimeError("此控制台支持 iOS 17 及以上。")
         if not await asyncio.wait_for(lockdown.get_developer_mode_status(), 8):
             raise RuntimeError("请在 iPhone 的「设置 → 隐私与安全性」开启开发者模式。")
@@ -344,7 +349,7 @@ async def operate(action, serial, points, stop, connect=location_session, comman
 
 
 def read_track(path):
-    points = json.loads(Path(path).read_text())
+    points = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(points, list) or not points:
         raise ValueError("轨迹没有坐标点")
     return points
@@ -377,17 +382,17 @@ async def main(args):
         stop.set()
         controls.changed.set()
 
-    def handle_input():
-        data = os.read(sys.stdin.fileno(), 4096)
+    def handle_input(data):
         if not data:
-            loop.remove_reader(sys.stdin.fileno())
+            if windows:
+                controls.reset_requested = True
             stop_playback()
             return
         buffer.extend(data)
         while b"\n" in buffer:
             line, remainder = buffer.split(b"\n", 1)
             buffer[:] = remainder
-            if line == b"reset":
+            if line in (b"reset", b"quit"):
                 controls.reset_requested = True
                 stop_playback()
             elif line == b"pause":
@@ -402,19 +407,46 @@ async def main(args):
         if len(buffer) > 4096:
             buffer.clear()
 
-    loop.add_reader(sys.stdin.fileno(), handle_input)
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop_playback)
+    windows = sys.platform == "win32"
+    signals = (signal.SIGINT, signal.SIGTERM)
+    if windows:
+        def read_commands():
+            while True:
+                try:
+                    data = os.read(sys.stdin.fileno(), 4096)
+                except OSError:
+                    data = b""
+                try:
+                    loop.call_soon_threadsafe(handle_input, data)
+                except RuntimeError:
+                    return
+                if not data:
+                    return
+
+        threading.Thread(target=read_commands, daemon=True).start()
+    else:
+        def read_commands():
+            data = os.read(sys.stdin.fileno(), 4096)
+            if not data:
+                loop.remove_reader(sys.stdin.fileno())
+            handle_input(data)
+
+        loop.add_reader(sys.stdin.fileno(), read_commands)
+        for sig in signals:
+            loop.add_signal_handler(sig, stop_playback)
     try:
         return await operate(args.action, args.serial, points, stop, commands=controls,
                              initial_index=getattr(args, "index", 0))
     finally:
-        loop.remove_reader(sys.stdin.fileno())
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.remove_signal_handler(sig)
+        if not windows:
+            loop.remove_reader(sys.stdin.fileno())
+            for sig in signals:
+                loop.remove_signal_handler(sig)
 
 
 if __name__ == "__main__":
+    freeze_support()
+    sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     commands = parser.add_subparsers(dest="action", required=True)
     commands.add_parser("list")

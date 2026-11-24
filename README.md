@@ -70,3 +70,7 @@ uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover 
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。
+
+## Windows 控制台
+
+Windows 版的源码运行方式、Apple USB 设备服务和真机验收流程见 [Windows 控制台说明](windows/README.md)。
