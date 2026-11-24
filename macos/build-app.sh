@@ -48,6 +48,24 @@ mkdir -p "$iconset"
 swift "$icon_source/make_icon.swift" "$iconset"
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/AConsole.icns"
 
+# Compile an explicit dark appearance on Xcode versions with Icon Composer support.
+icon_name=''
+if xcrun --find ictool >/dev/null 2>&1; then
+    composer="$icon_source/build/AConsole.icon"
+    composer_output="$icon_source/build/composer"
+    mkdir -p "$composer/Assets" "$composer_output"
+    cp "$icon_source/AConsole.icon/icon.json" "$composer/icon.json"
+    cp "$iconset/icon_512x512@2x.png" "$composer/Assets/art.png"
+    xcrun actool "$composer" --compile "$composer_output" --platform macosx \
+        --minimum-deployment-target 14 --app-icon AConsole \
+        --output-partial-info-plist "$composer_output/icons.plist"
+    cp "$composer_output/Assets.car" "$app/Contents/Resources/Assets.car"
+    icon_name='<key>CFBundleIconName</key><string>AConsole</string>'
+else
+    optional_catalog="$app/Contents/Resources/Assets.car"
+    if [ -f "$optional_catalog" ]; then unlink "$optional_catalog"; fi
+fi
+
 # 版本号随资源打进 bundle，界面读的就是它。
 printf '%s\n' "$current_version" > "$app/Contents/Resources/VERSION"
 
@@ -64,6 +82,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key><string>$current_version</string>
   <key>CFBundleVersion</key><string>$next_patch</string>
   <key>CFBundleIconFile</key><string>AConsole</string>
+  $icon_name
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>

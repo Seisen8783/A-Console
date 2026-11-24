@@ -2,6 +2,12 @@ import AppKit
 
 let path = CommandLine.arguments[1]
 let image = NSImage(size: NSSize(width: 128, height: 128), flipped: false) { rect in
+    NSGraphicsContext.saveGraphicsState()
+    defer { NSGraphicsContext.restoreGraphicsState() }
+    let transform = NSAffineTransform()
+    transform.translateX(by: 11, yBy: 11)
+    transform.scale(by: 106.0 / 128.0)
+    transform.concat()
     NSColor(white: 0.97, alpha: 1).setFill()
     NSBezierPath(roundedRect: rect.insetBy(dx: 4, dy: 4), xRadius: 28, yRadius: 28).fill()
     NSColor.black.setFill()
