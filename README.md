@@ -1,4 +1,4 @@
-# UnReal macOS 控制台
+# A Console macOS 控制台
 
 通过 USB 连接自己的测试 iPhone，在 Mac 上预览和回放 GPX、KMZ 或 KML 轨迹。控制台支持定位到轨迹起点、暂停与继续、调整回放配速和圈数，也可以查看预计完成时间。
 
@@ -6,10 +6,10 @@
 
 ## 一、下载 macOS 版本
 
-- **新版 DMG（2.0.36）**：[下载 UnReal Console 安装包](https://github.com/Seisen8783/UnReal/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
-- **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/UnReal/releases/tag/macos-v0.2.0)
+- **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
+- **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
-新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。旧版名称为 NoReal Console，新版名称为 UnReal Console。
+新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
 ## 二、从安装到回放
 
@@ -17,8 +17,8 @@
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
 2. 在 Mac 的「下载」文件夹中双击 `UnReal-Console-2.0.36-macOS.dmg`。
-3. 把窗口里的 **UnReal Console** 图标拖到 **Applications（应用程序）** 文件夹图标上。
-4. 打开访达，在左侧点击「应用程序」，找到并打开 **UnReal Console**。
+3. 把窗口里的应用图标拖到 **Applications（应用程序）** 文件夹图标上。
+4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
 
 ### 2. 安装设备连接工具
@@ -55,7 +55,7 @@ uv --version
 - [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx)
 - [控制台方案与实现](docs/macOS-定位回放控制台方案.md)
 - [iOS 定位模拟方案](docs/iOS-定位模拟方案.md)
-- [历史 Android 版本](https://github.com/Seisen8783/UnReal/releases/tag/v1.0)
+- [历史 Android 版本](https://github.com/Seisen8783/A-Console/releases/tag/v1.0)
 
 ## 从源码构建
 
@@ -65,7 +65,7 @@ swift test --package-path macos
 uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v
 ```
 
-构建产物位于 `macos/build/UnReal Console.app`。每次构建会递增仓库根目录中的 `VERSION`。
+安装 uv 后，运行 `./macos/build-dmg.sh` 可生成带 Finder 布局的 DMG。构建产物位于 `macos/build/A Console.app`。每次构建会递增仓库根目录中的 `VERSION`。
 
 ## 许可证
 

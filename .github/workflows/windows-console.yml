@@ -22,15 +22,15 @@ jobs:
       - working-directory: windows
         run: |
           python -m PyInstaller --noconfirm bridge.spec
-          python -m PyInstaller --noconfirm --windowed --paths .. --name UnRealConsole console.py
+          python -m PyInstaller --noconfirm --windowed --paths .. --icon a-console.ico --add-data "a-console.ico:." --name "A Console" console.py
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Installer.iss
-          $installer = Get-ChildItem dist\UnReal-Console-*-Windows-x64.exe
+          $installer = Get-ChildItem dist\A-Console-*-Windows-x64.exe
           if (-not $installer) { throw "Installer missing" }
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $($installer.Name)" | Set-Content -Encoding ascii "$($installer.FullName).sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: unreal-console-windows-x64
-          path: windows/dist/UnReal-Console-*-Windows-x64.exe*
+          name: a-console-windows-x64
+          path: windows/dist/A-Console-*-Windows-x64.exe*
           if-no-files-found: error

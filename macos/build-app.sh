@@ -36,30 +36,17 @@ if ! swift build --package-path "$package_dir" --configuration release 2>/tmp/un
     fi
 fi
 bin_dir=$(swift build --package-path "$package_dir" --configuration release --disable-sandbox --show-bin-path)
-app="$package_dir/build/UnReal Console.app"
+app="$package_dir/build/A Console.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 install -m 755 "$bin_dir/UnRealConsole" "$app/Contents/MacOS/UnRealConsole"
 ditto "$bin_dir/UnRealConsole_UnRealConsole.bundle" "$app/Contents/Resources/UnRealConsole_UnRealConsole.bundle"
 
-# 应用图标：白底黑色定位针。缺失或生成失败时不阻断构建。
+# Build the signed app with the current brand icon.
 icon_source="$repo_dir/tools/icon"
-icns="$app/Contents/Resources/UnRealConsole.icns"
-if [ -f "$icon_source/make_icon.swift" ]; then
-    icon_work="$icon_source/build"
-    if swift "$icon_source/make_icon.swift" "$icon_work" >/dev/null 2>&1; then
-        iconset="$icon_work/UnRealConsole.iconset"
-        rm -rf "$iconset"
-        mkdir -p "$iconset"
-        cp "$icon_work"/*.png "$iconset/"
-        if iconutil -c icns "$iconset" -o "$icns" 2>/dev/null; then
-            printf '图标已更新\n' >&2
-        else
-            printf '图标合成失败，跳过。\n' >&2
-        fi
-    else
-        printf '图标生成失败，跳过。\n' >&2
-    fi
-fi
+iconset="$icon_source/build/AConsole.iconset"
+mkdir -p "$iconset"
+swift "$icon_source/make_icon.swift" "$iconset"
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/AConsole.icns"
 
 # 版本号随资源打进 bundle，界面读的就是它。
 printf '%s\n' "$current_version" > "$app/Contents/Resources/VERSION"
@@ -69,14 +56,14 @@ cat > "$app/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>UnReal Console</string>
-  <key>CFBundleDisplayName</key><string>UnReal Console</string>
+  <key>CFBundleName</key><string>A Console</string>
+  <key>CFBundleDisplayName</key><string>A Console</string>
   <key>CFBundleIdentifier</key><string>com.unreal.console</string>
   <key>CFBundleExecutable</key><string>UnRealConsole</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$current_version</string>
   <key>CFBundleVersion</key><string>$next_patch</string>
-  <key>CFBundleIconFile</key><string>UnRealConsole</string>
+  <key>CFBundleIconFile</key><string>AConsole</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>

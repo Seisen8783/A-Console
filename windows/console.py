@@ -1,4 +1,4 @@
-"""Windows desktop entry point for UnReal Console."""
+"""Windows desktop entry point for A Console."""
 
 import bisect
 import json
@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QPointF, QLockFile, QProcess, QSaveFile, QIODevice, QStandardPaths, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QPointF, QLockFile, QProcess, QSaveFile, QSettings, QIODevice, QStandardPaths, Qt, QTimer, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QIcon, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel,
     QPushButton, QSlider, QSpinBox, QVBoxLayout, QWidget,
@@ -16,7 +16,11 @@ from PySide6.QtWidgets import (
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from onboarding import Onboarding
 from routes import fit_loop, normalize, read_route, timeline
+
+
+REPOSITORY_URL = "https://github.com/Seisen8783/A-Console"
 
 
 class Preview(QWidget):
@@ -66,7 +70,7 @@ class Preview(QWidget):
 class Console(QWidget):
     def __init__(self, folder):
         super().__init__()
-        self.setWindowTitle("UnReal Console")
+        self.setWindowTitle("A Console")
         self.setAcceptDrops(True)
         self.segments = []
         self.points = []
@@ -92,6 +96,10 @@ class Console(QWidget):
         self.refresh.clicked.connect(lambda: self.launch("list"))
         self.open = QPushButton("导入 GPX / KML / KMZ")
         self.open.clicked.connect(self.choose)
+        guide = QPushButton("使用引导")
+        guide.clicked.connect(lambda: Onboarding(self).exec())
+        repository = QPushButton("GitHub Repository")
+        repository.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(REPOSITORY_URL)))
         self.source = QLabel("未选择轨迹")
         self.pace = QSpinBox()
         self.pace.setRange(60, 3600)
@@ -127,7 +135,7 @@ class Console(QWidget):
         self.status = QLabel("等待 USB 设备")
         self.status.setWordWrap(True)
         layout = QVBoxLayout(self)
-        for row in ((self.devices, self.refresh, self.open, self.source),
+        for row in ((self.devices, self.refresh, self.open, self.source, guide),
                     (QLabel("配速"), self.pace, QLabel("圈数"), self.laps, QLabel("目标距离"), self.km),
                     (QLabel("坐标基准"), self.datum, QLabel("向东"), self.east,
                      QLabel("向北"), self.north, self.centerline),
@@ -367,13 +375,21 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setApplicationName("UnReal Console")
     folder = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
+    app.setApplicationName("A Console")
+    app.setWindowIcon(QIcon(str(Path(__file__).with_name("a-console.ico"))))
     folder.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(folder / "console.lock"))
     lock.setStaleLockTime(0)
     if not lock.tryLock():
         from PySide6.QtWidgets import QMessageBox
-        QMessageBox.information(None, "UnReal Console", "控制台已打开。")
+        QMessageBox.information(None, "A Console", "控制台已打开。")
         sys.exit(1)
+    settings = QSettings("UnReal", "Console")
+    if not (folder / "pending-device").exists() and not settings.value("onboardingSeen", False, type=bool):
+        if not Onboarding(first=True).exec():
+            sys.exit(0)
+        settings.setValue("onboardingSeen", True)
+        settings.sync()
     console = Console(folder)
     console.show()
     sys.exit(app.exec())
