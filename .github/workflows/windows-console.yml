@@ -1,0 +1,36 @@
+name: Windows console
+on:
+  push:
+    paths: ['windows/**', 'macos/Sources/UnRealConsole/Resources/device_bridge.py', '.github/workflows/windows-console.yml']
+  pull_request:
+    paths: ['windows/**', 'macos/Sources/UnRealConsole/Resources/device_bridge.py', '.github/workflows/windows-console.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - run: python -m pip install -r windows/requirements.txt
+      - run: python -m unittest discover -s windows
+      - run: python -m unittest discover -s macos/Tests/Python
+      - working-directory: windows
+        run: |
+          python -m PyInstaller --noconfirm bridge.spec
+          python -m PyInstaller --noconfirm --windowed --paths .. --icon a-console.ico --add-data "a-console.ico:." --name "A Console" console.py
+          choco install innosetup -y --no-progress
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Installer.iss
+          $installer = Get-ChildItem dist\A-Console-*-Windows-x64.exe
+          if (-not $installer) { throw "Installer missing" }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($installer.Name)" | Set-Content -Encoding ascii "$($installer.FullName).sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a-console-windows-x64
+          path: windows/dist/A-Console-*-Windows-x64.exe*
+          if-no-files-found: error

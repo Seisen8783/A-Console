@@ -1,10 +1,6 @@
 #!/usr/bin/env swift
 
-// 生成 UnReal Console 的应用图标。
-//
-// 图案：白底 + 蓝色实心圆 + 深色导航箭头（Apple Maps 风格，尖端朝右上）。
-// 用 CoreGraphics 直接绘制 PNG，再交给 iconutil 合成 .icns。
-// 不依赖 rsvg-convert / ImageMagick 等外部工具。
+// Render the shared A Console icon master to a macOS iconset.
 
 import AppKit
 import Foundation
@@ -23,24 +19,12 @@ let sizes: [(String, Int)] = [
     ("icon_512x512@2x.png", 1024),
 ]
 
-/// 圆与箭头的颜色取自原始图标：蓝 #4479FB，箭头 #333333。
-let circleBlue = NSColor(srgbRed: 68.0 / 255.0, green: 121.0 / 255.0, blue: 251.0 / 255.0, alpha: 1)
-let arrowInk = NSColor(srgbRed: 51.0 / 255.0, green: 51.0 / 255.0, blue: 51.0 / 255.0, alpha: 1)
-let background = NSColor.white
-
-/// 圆心与半径（以 512 的画布为单位）。
-///
-/// 比例取自原始图标：蓝圆直径约占画布宽度的 69%，四周留白，
-/// 圆心基本居中（纵向略偏上一点点）。
+let circleInk = NSColor(srgbRed: 0.025, green: 0.032, blue: 0.035, alpha: 1)
+let background = NSColor(srgbRed: 0.97, green: 0.97, blue: 0.97, alpha: 1)
 let center = 256.0
-let circleCenterY = 248.0
+let circleCenterY = 256.0
 let radius = 176.0
 
-/// 导航箭头的顶点，单位为「圆半径的比例」，原点在圆心，y 轴向上。
-///
-/// 数值由原始图标的像素轮廓反推得到：
-/// 尖端 (51,23)、左侧末端 (24,36)、尾翼折角 (38,39)、尾针末端 (40,51)，
-/// 圆心 (40,36)、半径 27。
 private let arrowPoints: [(x: Double, y: Double)] = [
     (0.407, 0.481),   // 尖端（右上）
     (-0.593, 0.000),  // 左侧斜边末端
@@ -59,12 +43,11 @@ func makeIcon(size: Int) -> NSBitmapImageRep {
 
     let scale = CGFloat(size) / 512.0
 
-    // 白底
     background.setFill()
-    NSRect(x: 0, y: 0, width: size, height: size).fill()
+    let tile = NSRect(x: 12 * scale, y: 12 * scale, width: 488 * scale, height: 488 * scale)
+    NSBezierPath(roundedRect: tile, xRadius: 112 * scale, yRadius: 112 * scale).fill()
 
-    // 蓝色实心圆
-    circleBlue.setFill()
+    circleInk.setFill()
     NSBezierPath(ovalIn: NSRect(x: (center - radius) * scale, y: (circleCenterY - radius) * scale,
                                 width: radius * 2 * scale, height: radius * 2 * scale)).fill()
 
@@ -80,7 +63,7 @@ func makeIcon(size: Int) -> NSBitmapImageRep {
         }
     }
     path.close()
-    arrowInk.setFill()
+    background.setFill()
     path.fill()
 
     NSGraphicsContext.restoreGraphicsState()

@@ -1,0 +1,19 @@
+{
+  "fill-specializations": [
+    { "value": { "solid": "extended-srgb:0.97000,0.97000,0.97000,1.00000" } },
+    { "appearance": "dark", "value": { "solid": "extended-srgb:0.97000,0.97000,0.97000,1.00000" } }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "name": "A Console",
+          "image-name": "art.png",
+          "glass": false
+        }
+      ],
+      "specular": false
+    }
+  ],
+  "supported-platforms": { "squares": ["macOS"] }
+}

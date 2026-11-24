@@ -1,4 +1,4 @@
-# UnReal macOS 控制台
+# A Console macOS 控制台
 
 通过 USB 连接自己的测试 iPhone，在 Mac 上预览和回放 GPX、KMZ 或 KML。控制台可以定位到起点、拖动时间条跳转、从起点重播，并在暂停时保持当前位置。
 
@@ -69,7 +69,7 @@ uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover 
 受限终端里 SwiftPM 自带的沙箱会因 `sandbox_apply` 失败，需要加 `--disable-sandbox`；
 `build-app.sh` 检测到会自动退回无沙箱模式重试。
 
-构建产物位于 `macos/build/UnReal Console.app`。
+构建产物位于 `macos/build/A Console.app`。
 
 ## 版本号
 

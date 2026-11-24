@@ -7,8 +7,8 @@ struct ConsoleApp: App {
     @NSApplicationDelegateAdaptor(ConsoleDelegate.self) private var delegate
 
     var body: some Scene {
-        Window("UnReal Console", id: "console") {
-            ConsoleView(model: .shared)
+        Window(AppInfo.name, id: "console") {
+            StartupView(model: .shared)
                 .frame(minWidth: 780, minHeight: 510)
         }
         .defaultSize(width: 960, height: 590)
@@ -26,9 +26,10 @@ final class ConsoleDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 }
 
-private struct ConsoleView: View {
+struct ConsoleView: View {
     @ObservedObject var model: ConsoleModel
     @State private var importing = false
+    @State private var showingGuide = false
     @State private var dragTarget = false
     @State private var scrubTime: Double?
     private let trackTypes = ["gpx", "kmz", "kml"].compactMap { UTType(filenameExtension: $0) } + [.xml]
@@ -38,6 +39,10 @@ private struct ConsoleView: View {
             sidebar
             Divider()
             workspace
+        }
+        .sheet(isPresented: $showingGuide) {
+            OnboardingView(firstLaunch: false) { showingGuide = false }
+                .frame(width: 620)
         }
         .fileImporter(isPresented: $importing, allowedContentTypes: trackTypes) { result in
             if case let .success(url) = result { open(url) }
@@ -52,22 +57,20 @@ private struct ConsoleView: View {
         ScrollView {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Label("UnReal", systemImage: "location.circle.fill")
+                Label(AppInfo.name, systemImage: "location.circle.fill")
                     .font(.system(size: 27, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.accentColor)
-                // 版本号可点击，跳到仓库地址。
-                Button {
-                    if let url = URL(string: AppInfo.repositoryURL) {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    Text(AppVersion.current.display)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("打开仓库：\(AppInfo.repositoryURL)")
-                .accessibilityLabel("版本 \(AppVersion.current.display)，点击打开仓库")
+                Text(AppVersion.current.display)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Link(destination: AppInfo.repositoryURL) {
+                Label("GitHub Repository", systemImage: "arrow.up.right.square")
+            }
+
+            Button { showingGuide = true } label: {
+                Label("使用引导", systemImage: "questionmark.circle")
             }
 
             VStack(alignment: .leading, spacing: 9) {
