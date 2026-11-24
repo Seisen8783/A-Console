@@ -9,6 +9,7 @@ icon_locations = {
     "GitHub Repository.webloc": (480, 170),
 }
 window_rect = ((160, 160), (578, 389))
+grid_spacing = 64
 icon_size = 40
 text_size = 13
 show_status_bar = False
