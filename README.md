@@ -4,13 +4,16 @@
 
 手机无需安装额外 App、越狱或开发者账号。本工具用于定位与轨迹的开发测试，其他 App 是否显示模拟位置取决于各自的处理方式。
 
-## 一、下载 macOS 版本
+## 一、下载 A Console
 
-- **A Console 2.0.41**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-2.0.41-macOS.dmg)
-- **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
-- **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
+| 平台 | 安装包 | 系统要求 |
+| --- | --- | --- |
+| macOS | [下载 2.0.41（DMG）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-2.0.41-macOS.dmg) | Apple 芯片 Mac、macOS 14 或以上、iOS 17 或以上 |
+| Windows | [下载 0.1.0 测试版（EXE）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe) | Windows 11 x64、iOS 17.4 或以上 |
 
-新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
+下载后，按下方的 [macOS](#二macos-从安装到回放) 或 [Windows](#三windows-从安装到回放) 指南安装并连接 iPhone。
+
+历史 macOS 安装包沿用 UnReal Console 或 NoReal Console 的名称。[下载 2.0.36 DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg) · [查看 0.2.0 ZIP 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
 ## 二、macOS 从安装到回放
 
@@ -56,7 +59,7 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 
 ### 1. 安装控制台和 USB 组件
 
-1. [下载 A Console 0.1.0 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe)，双击运行，完成后从开始菜单打开 **A Console**。
+1. 从第一节下载 Windows 安装包并双击运行，完成后从开始菜单打开 **A Console**。
 2. 安装 [Apple 官网的 Windows 版 iTunes](https://www.apple.com/itunes/download/win64)，以安装 Apple Mobile Device Service。Windows 无需 Xcode、Python 或 uv。
 
 ### 2. 连接 iPhone
