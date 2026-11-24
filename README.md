@@ -13,9 +13,17 @@
 
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
-Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装指南](#三windows-从安装到回放)。
+Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装指南](#四windows-从安装到回放)。
 
-## 二、macOS 从安装到回放
+## 二、实现原理
+
+1. **解析轨迹。** 控制台读取 GPX、KML 或 KMZ 中的坐标，并根据轨迹时间戳或设定配速安排回放进度。
+2. **建立 USB 会话。** macOS 和 Windows 版共用基于 `pymobiledevice3` 的设备桥接程序，通过 USB 连接已信任此电脑、且已开启开发者模式的 iPhone，访问 iOS 的 DVT 定位模拟服务。
+3. **回放与恢复。** 播放时，桥接程序依次向定位模拟服务发送坐标。点击「重置位置」或「恢复真实定位」时，控制台请求清除模拟位置。
+
+更多细节见 [iOS 定位模拟方案](docs/iOS-定位模拟方案.md)。
+
+## 三、macOS 从安装到回放
 
 ### 1. 安装控制台
 
@@ -53,7 +61,7 @@ uv --version
 
 回放期间请保持 USB 连接。开发者服务连接短暂中断时，控制台会尝试重连同一台 iPhone，从中断处继续。如果重连失败，请检查数据线、解锁手机后重新连接。配速、轨迹数据和手机定位精度也可能影响实际显示。
 
-## 三、Windows 从安装到回放
+## 四、Windows 从安装到回放
 
 Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或以上**，通过 USB 连接。Windows 构建和自动化测试已通过，Windows 与 iPhone 的完整真机流程仍待验收。
 
