@@ -7,10 +7,13 @@
 ## 一、下载 macOS & Windows 版本
 
 - **A Console 2.0.41**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-2.0.41-macOS.dmg)
+- **Windows 0.1.0 测试版**：[下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe)
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
-新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
+macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
+
+Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装指南](#三windows-从安装到回放)。
 
 ## 二、macOS 从安装到回放
 
