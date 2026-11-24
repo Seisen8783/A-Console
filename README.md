@@ -1,23 +1,24 @@
-# A Console macOS 控制台
+# A Console
 
-通过 USB 连接自己的测试 iPhone，在 Mac 上预览和回放 GPX、KMZ 或 KML 轨迹。控制台支持定位到轨迹起点、暂停与继续、调整回放配速和圈数，也可以查看预计完成时间。
+通过 USB 连接自己的测试 iPhone，在 macOS 或 Windows 上预览和回放 GPX、KMZ 或 KML 轨迹。控制台支持定位到轨迹起点、暂停与继续、调整回放配速和圈数，也可以查看预计完成时间。
 
 手机无需安装额外 App、越狱或开发者账号。本工具用于定位与轨迹的开发测试，其他 App 是否显示模拟位置取决于各自的处理方式。
 
 ## 一、下载 macOS 版本
 
+- **A Console 2.0.41**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-2.0.41-macOS.dmg)
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
 新版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
-## 二、从安装到回放
+## 二、macOS 从安装到回放
 
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `UnReal-Console-2.0.36-macOS.dmg`。
-3. 把窗口里的应用图标拖到 **Applications（应用程序）** 文件夹图标上。
+2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.41-macOS.dmg`。
+3. 把窗口里的 **A Console.app** 拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
 
@@ -49,6 +50,28 @@ uv --version
 
 回放期间请保持 USB 连接。开发者服务连接短暂中断时，控制台会尝试重连同一台 iPhone，从中断处继续。如果重连失败，请检查数据线、解锁手机后重新连接。配速、轨迹数据和手机定位精度也可能影响实际显示。
 
+## 三、Windows 从安装到回放
+
+Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或以上**，通过 USB 连接。Windows 构建和自动化测试已通过，Windows 与 iPhone 的完整真机流程仍待验收。
+
+### 1. 安装控制台和 USB 组件
+
+1. [下载 A Console 0.1.0 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe)，双击运行，完成后从开始菜单打开 **A Console**。
+2. 安装 [Apple 官网的 Windows 版 iTunes](https://www.apple.com/itunes/download/win64)，以安装 Apple Mobile Device Service。Windows 无需 Xcode、Python 或 uv。
+
+### 2. 连接 iPhone
+
+1. 使用支持数据传输的 USB 线连接 Windows 电脑和 iPhone。解锁手机，轻点「信任」，按提示输入锁屏密码。
+2. 在 iPhone 上进入「设置 → 隐私与安全性 → 开发者模式」，开启后按提示重启并确认。若看不到该开关，见 [Windows 控制台说明](windows/README.md)。
+3. 在 A Console 点击「刷新 USB」，从列表选择你的 iPhone。首次连接开发者服务可能要联网准备开发者镜像。
+
+### 3. 导入并回放轨迹
+
+1. 点击「导入 GPX / KML / KMZ」，或把轨迹文件拖进窗口。可以用 [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx) 试跑。GPX 回放需要完整时间戳，缺少时间戳的 KML/KMZ 按设定配速生成时间。
+2. 按需设置坐标基准、配速、圈数或目标距离。请在开始回放前完成这些设置。
+3. 点击「定位到起点」，在 iPhone 上核对位置，再点「开始回放」。回放期间保持 USB 连接，可暂停、继续或拖动时间轴跳转。
+4. 回放结束后会返回轨迹起点。使用完毕后点击「恢复真实定位」，并在 iPhone 上确认。若 USB 已断开，重新连接原 iPhone 再执行恢复。
+
 ## 更多信息
 
 - [控制台详细说明](macos/README.md)
@@ -70,7 +93,3 @@ uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover 
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。
-
-## Windows 控制台
-
-Windows 版的源码运行方式、Apple USB 设备服务和真机验收流程见 [Windows 控制台说明](windows/README.md)。
