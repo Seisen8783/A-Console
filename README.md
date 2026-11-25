@@ -7,7 +7,7 @@
 ## 一、下载 macOS & Windows 版本
 
 - **A Console 2.0.43**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
-- **Windows 0.1.1 测试版**：[下载 Windows x64 EXE](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.1/A-Console-0.1.1-Windows-x64.exe)
+- **Windows 0.1.2 测试版**：[下载 Windows x64 EXE](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.2/A-Console-0.1.2-Windows-x64.exe)
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
@@ -61,7 +61,7 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 
 ### 1. 安装控制台和 USB 组件
 
-1. [下载 A Console 0.1.1 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.1/A-Console-0.1.1-Windows-x64.exe)，双击运行。
+1. [下载 A Console 0.1.2 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.2/A-Console-0.1.2-Windows-x64.exe)，双击运行。
 2. 如果安装向导显示 **Download and install Apple device support**，勾选后它会从 Apple 下载并打开 iTunes 安装程序。按提示授予管理员权限，并完成 Apple 安装向导。已装 Apple Mobile Device Service 的电脑会跳过此步骤。
 3. 如果目标电脑无法联网，可提前从 [Apple 官网下载 Windows 版 iTunes](https://www.apple.com/itunes/download/win64)，拷到目标电脑安装。A Console 已内置 Python 和设备桥接，无需安装 uv。
 
