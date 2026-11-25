@@ -19,7 +19,7 @@ swift "$root/tools/icon/set_repository_icon.swift" "$link"
 SetFile -t ilht -c MACS "$link"
 mkdir -p "$root/dist"
 dmg="$root/dist/A-Console-$version-macOS.dmg"
-uvx --from dmgbuild==1.6.7 dmgbuild -s "$macos_dir/dmg-settings.py" \
+"$app/Contents/MacOS/uv" tool run --from dmgbuild==1.6.7 dmgbuild -s "$macos_dir/dmg-settings.py" \
     -D "app=$app" -D "repository=$link" "A Console $version" "$dmg"
 hdiutil verify "$dmg"
 printf '%s\n' "$dmg"

@@ -600,17 +600,17 @@ final class ConsoleModel: ObservableObject {
         error = nil
         lastDiagnostic = nil
         receivedResult = false
-        guard let executable = Self.uvx, let bridge = Bundle.module.url(forResource: "device_bridge",
+        guard let executable = Self.bridgeLauncher, let bridge = Bundle.module.url(forResource: "device_bridge",
                                                                  withExtension: "py") else {
             if let file { try? FileManager.default.removeItem(at: file) }
-            error = "找不到 uvx 或设备桥接文件。请安装 uv 后重新打开 UnReal Console。"
+            error = "找不到设备连接工具。请重新安装 A Console。"
             return
         }
         let task = Process()
         let output = Pipe()
         let commands = Pipe()
-        task.executableURL = executable
-        task.arguments = ["--from", "pymobiledevice3==11.61.0", "--python", "3.14", "python", "-u",
+        task.executableURL = executable.url
+        task.arguments = executable.prefix + ["--from", "pymobiledevice3==11.61.0", "--python", "3.14", "python", "-u",
                           bridge.path, action.rawValue] + [serial, file?.path].compactMap { $0 }
         if action == .play { task.arguments?.append(contentsOf: ["--index", String(index)]) }
         task.standardOutput = output
@@ -748,11 +748,18 @@ final class ConsoleModel: ObservableObject {
         reply?()
     }
 
-    private static var uvx: URL? {
+    private static var bridgeLauncher: (url: URL, prefix: [String])? {
+        if let bundledUV = Bundle.main.url(forAuxiliaryExecutable: "uv"),
+           FileManager.default.isExecutableFile(atPath: bundledUV.path) {
+            return (bundledUV, ["tool", "run"])
+        }
+
+        // SwiftPM development builds use the developer's installed uvx.
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let path = ProcessInfo.processInfo.environment["PATH"]?.split(separator: ":").map(String.init) ?? []
         let directories = path + ["\(home)/.local/bin", "\(home)/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"]
-        return directories.map { URL(fileURLWithPath: $0).appendingPathComponent("uvx") }
+        let uvx = directories.map { URL(fileURLWithPath: $0).appendingPathComponent("uvx") }
             .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        return uvx.map { ($0, []) }
     }
 }

@@ -6,7 +6,7 @@
 
 ## 一、下载 macOS & Windows 版本
 
-- **A Console 2.0.42**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.42/A-Console-2.0.42-macOS.dmg)
+- **A Console 2.0.43**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
 - **Windows 0.1.0 测试版**：[下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe)
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
@@ -28,20 +28,14 @@ Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.42-macOS.dmg`。
+2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.43-macOS.dmg`。
 3. 把窗口里的 **A Console.app** 拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
 
-### 2. 安装设备连接工具
+### 2. 准备设备连接工具
 
-控制台需要 `uv` 来准备连接 iPhone 的程序。打开 Mac 的「终端」（按下 `command + 空格`，输入“终端”并回车），运行：
-
-```bash
-uv --version
-```
-
-如果显示版本号，说明已经安装，可以继续。如果提示找不到命令，请按照 [uv 官方安装说明](https://docs.astral.sh/uv/getting-started/installation/)安装；如果已经安装 Homebrew，也可以运行 `brew install uv`。安装后关闭并重新打开控制台。首次连接时需要联网下载依赖，请耐心等待。
+A Console 已内置 uv。首次运行时请保持 Mac 联网，应用会自动下载连接 iPhone 所需的 Python 和依赖。
 
 ### 3. 准备并连接 iPhone
 
@@ -99,7 +93,7 @@ swift test --package-path macos
 uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v
 ```
 
-安装 uv 后，运行 `./macos/build-dmg.sh` 可生成带 Finder 布局的 DMG。构建产物位于 `macos/build/A Console.app`。每次构建会递增仓库根目录中的 `VERSION`。
+运行 `./macos/build-dmg.sh` 可生成带 Finder 布局的 DMG。构建产物位于 `macos/build/A Console.app`。每次构建会递增仓库根目录中的 `VERSION`。
 
 ## 许可证
 

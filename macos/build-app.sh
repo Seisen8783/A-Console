@@ -41,6 +41,37 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 install -m 755 "$bin_dir/UnRealConsole" "$app/Contents/MacOS/UnRealConsole"
 ditto "$bin_dir/UnRealConsole_UnRealConsole.bundle" "$app/Contents/Resources/UnRealConsole_UnRealConsole.bundle"
 
+# Bundle a verified upstream uv binary for the executable's architecture.
+uv_version=0.13.10
+case "$(lipo -archs "$app/Contents/MacOS/UnRealConsole")" in
+    arm64)
+        uv_target=aarch64-apple-darwin
+        uv_sha256=e419bf07533bdbf48795fc793601c834dd79db57a8c49ce8e25cfe3a8639958d
+        ;;
+    x86_64)
+        uv_target=x86_64-apple-darwin
+        uv_sha256=153e03197588204c04fc4c81cc4bafbfa4280222a385e4ee36a87aeec0ae63b4
+        ;;
+    *)
+        printf '无法识别 macOS 应用的架构。\n' >&2
+        exit 1
+        ;;
+esac
+uv_tmp=$(mktemp -d -t a-console-uv)
+trap 'rm -rf "$uv_tmp"' EXIT
+uv_archive="uv-$uv_target.tar.gz"
+curl -fsSL --retry 3 "https://github.com/astral-sh/uv/releases/download/$uv_version/$uv_archive" \
+    -o "$uv_tmp/$uv_archive"
+(cd "$uv_tmp" && printf '%s  %s\n' "$uv_sha256" "$uv_archive" | shasum -a 256 -c -)
+tar -xzf "$uv_tmp/$uv_archive" -C "$uv_tmp" "uv-$uv_target/uv"
+install -m 755 "$uv_tmp/uv-$uv_target/uv" "$app/Contents/MacOS/uv"
+mkdir -p "$app/Contents/Resources/uv-licenses"
+for license in LICENSE-MIT LICENSE-APACHE; do
+    curl -fsSL --retry 3 "https://raw.githubusercontent.com/astral-sh/uv/$uv_version/$license" \
+        -o "$app/Contents/Resources/uv-licenses/$license"
+done
+codesign --force --sign - "$app/Contents/MacOS/uv"
+
 # Build the signed app with the current brand icon.
 icon_source="$repo_dir/tools/icon"
 iconset="$icon_source/build/AConsole.iconset"
