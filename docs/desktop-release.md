@@ -12,6 +12,6 @@ Windows 和 macOS 的每个安装包版本都通过同一个命令发布到 GitH
    ```
 
    版本已有 GitHub Release 时，可以省略本地安装包路径。脚本会下载对应的 Release 附件并复用现有发布说明。新建的 GitHub Release 默认为预发布。
-4. 用脚本输出的 EXE 或 DMG 直链更新 GitHub 首页。更新 Gitee 首页的版本号和安装包文件名，下载入口使用 Gitee 的 `main.zip`。同步源码时，分别保留两个首页各自的下载入口。
+4. 用脚本输出的 GitHub Release 附件直链更新两个仓库首页对应的 Windows EXE 或 macOS DMG 下载入口。Gitee 首页同时提供 Gitee 安装包直链，并标明需要登录。更新版本号和安装指南里的文件名。
 
 遇到网络或并发推送失败，可以用同一个版本和安装包重跑。若同名附件的校验值不同，使用新的版本号发布改过的安装包。

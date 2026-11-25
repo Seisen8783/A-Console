@@ -6,10 +6,8 @@
 
 ## 一、下载 macOS & Windows 版本
 
-- **A Console 2.0.43**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
-- **Windows 0.1.2 测试版**：[下载 Windows x64 EXE](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.2/A-Console-0.1.2-Windows-x64.exe)
-- **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
-- **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
+- **macOS 2.0.43** · [下载 macOS 安装包（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
+- **Windows 0.1.2 测试版** · [下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.2/A-Console-0.1.2-Windows-x64.exe)
 
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
@@ -84,6 +82,8 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 - [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx)
 - [控制台方案与实现](docs/macOS-定位回放控制台方案.md)
 - [iOS 定位模拟方案](docs/iOS-定位模拟方案.md)
+- [历史 macOS 2.0.36 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
+- [历史 macOS 0.2.0 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 - [历史 Android 版本](https://github.com/Seisen8783/A-Console/releases/tag/v1.0)
 
 ## 从源码构建
