@@ -7,7 +7,7 @@
 ## 一、下载 macOS & Windows 版本
 
 - **macOS 2.0.43** · [下载 macOS 安装包（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
-- **Windows 0.1.2 测试版** · [下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.2/A-Console-0.1.2-Windows-x64.exe)
+- **Windows 0.1.3 测试版** · [下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.3/A-Console-0.1.3-Windows-x64.exe)
 
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
@@ -59,7 +59,7 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 
 ### 1. 安装控制台和 USB 组件
 
-1. [下载 A Console 0.1.2 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.2/A-Console-0.1.2-Windows-x64.exe)，双击运行。
+1. [下载 A Console 0.1.3 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.3/A-Console-0.1.3-Windows-x64.exe)，双击运行。
 2. 如果安装向导显示 **Download and install Apple device support**，勾选后它会从 Apple 下载并打开 iTunes 安装程序。按提示授予管理员权限，并完成 Apple 安装向导。已装 Apple Mobile Device Service 的电脑会跳过此步骤。
 3. 如果目标电脑无法联网，可提前从 [Apple 官网下载 Windows 版 iTunes](https://www.apple.com/itunes/download/win64)，拷到目标电脑安装。A Console 已内置 Python 和设备桥接，无需安装 uv。
 
@@ -71,7 +71,7 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 
 ### 3. 导入并回放轨迹
 
-1. 点击「导入 GPX / KML / KMZ」，或把轨迹文件拖进窗口。可以用 [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx) 试跑。GPX 回放需要完整时间戳，缺少时间戳的 KML/KMZ 按设定配速生成时间。
+1. 启动后会自动预览内置默认轨迹。也可以点击「导入 GPX / KML / KMZ」或拖入轨迹文件，点击「默认轨迹」即可切回。可以用 [20 秒测试轨迹](macos/Tests/Fixtures/sample.gpx) 试跑。GPX 回放需要完整时间戳，缺少时间戳的 KML/KMZ 按设定配速生成时间。
 2. 按需设置坐标基准、配速、圈数或目标距离。请在开始回放前完成这些设置。
 3. 点击「定位到起点」，在 iPhone 上核对位置，再点「开始回放」。回放期间保持 USB 连接，可暂停、继续或拖动时间轴跳转。
 4. 回放结束后会返回轨迹起点。使用完毕后点击「恢复真实定位」，并在 iPhone 上确认。若 USB 已断开，重新连接原 iPhone 再执行恢复。
