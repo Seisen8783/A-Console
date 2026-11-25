@@ -8,7 +8,7 @@
 
 | 平台 | 安装包 | 系统要求 |
 | --- | --- | --- |
-| macOS | [下载 2.0.41（DMG）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-2.0.41-macOS.dmg) | Apple 芯片 Mac、macOS 14 或以上、iOS 17 或以上 |
+| macOS | [下载 2.0.42（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.42/A-Console-2.0.42-macOS.dmg) | Apple 芯片 Mac、macOS 14 或以上、iOS 17 或以上 |
 | Windows | [下载 0.1.0 测试版（EXE）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe) | Windows 11 x64、iOS 17.4 或以上 |
 
 下载后，按下方的 [macOS](#二macos-从安装到回放) 或 [Windows](#三windows-从安装到回放) 指南安装并连接 iPhone。
@@ -20,7 +20,7 @@
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.41-macOS.dmg`。
+2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.42-macOS.dmg`。
 3. 把窗口里的 **A Console.app** 拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。

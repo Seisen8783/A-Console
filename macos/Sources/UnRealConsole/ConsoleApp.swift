@@ -58,9 +58,12 @@ struct ConsoleView: View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Label(AppInfo.name, systemImage: "location.circle.fill")
-                    .font(.system(size: 27, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .foregroundStyle(Color.accentColor)
                 Text(AppVersion.current.display)
+                    .fixedSize(horizontal: true, vertical: false)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             }
