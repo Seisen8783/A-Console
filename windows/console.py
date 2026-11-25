@@ -380,7 +380,7 @@ if __name__ == "__main__":
     folder.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(folder / "console.lock"))
     lock.setStaleLockTime(0)
-    if not lock.tryLock():
+    if not lock.tryLock(0):
         from PySide6.QtWidgets import QMessageBox
         QMessageBox.information(None, "A Console", "控制台已打开。")
         sys.exit(1)

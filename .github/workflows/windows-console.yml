@@ -29,6 +29,44 @@ jobs:
           if (-not $installer) { throw "Installer missing" }
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $($installer.Name)" | Set-Content -Encoding ascii "$($installer.FullName).sha256"
+      - name: Verify installed app starts
+        working-directory: windows
+        run: |
+          $installer = Get-Item dist\A-Console-*-Windows-x64.exe
+          $appDir = Join-Path $env:RUNNER_TEMP AConsoleSmoke
+          $setup = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$appDir`"" -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)" }
+          $executable = Join-Path $appDir 'A Console.exe'
+
+          function Test-AppWindow($expectedTitle) {
+            $process = Start-Process $executable -PassThru
+            try {
+              $deadline = (Get-Date).AddSeconds(30)
+              do {
+                $process.Refresh()
+                if ($process.HasExited) { throw "App exited before showing '$expectedTitle' with code $($process.ExitCode)" }
+                $title = $process.MainWindowTitle
+                if ($title -eq $expectedTitle) {
+                  Write-Host "Saw '$expectedTitle'"
+                  if (-not $process.CloseMainWindow() -or -not $process.WaitForExit(15000)) {
+                    throw "App did not close after showing '$expectedTitle'"
+                  }
+                  if ($process.ExitCode -ne 0) { throw "App exited with code $($process.ExitCode)" }
+                  return
+                }
+                if ($title) { throw "Expected '$expectedTitle', saw '$title'" }
+                Start-Sleep -Milliseconds 250
+              } while ((Get-Date) -lt $deadline)
+              throw "App did not show '$expectedTitle'"
+            } finally {
+              if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+            }
+          }
+
+          Test-AppWindow 'A Console · 使用引导'
+          New-Item -Path 'HKCU:\Software\UnReal\Console' -Force | Out-Null
+          New-ItemProperty -Path 'HKCU:\Software\UnReal\Console' -Name onboardingSeen -Value 'true' -PropertyType String -Force | Out-Null
+          Test-AppWindow 'A Console'
       - uses: actions/upload-artifact@v4
         with:
           name: a-console-windows-x64
