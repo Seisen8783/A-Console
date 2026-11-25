@@ -11,6 +11,8 @@
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
+**Gitee 下载** · [免登录下载 ZIP](https://gitee.com/songxiuyu2077/A-Console/repository/archive/main.zip)，解压后在 `installers/` 中找到 Windows EXE 或 macOS DMG。
+
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
 Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装指南](#四windows-从安装到回放)。
@@ -95,6 +97,8 @@ uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover 
 ```
 
 运行 `./macos/build-dmg.sh` 可生成带 Finder 布局的 DMG。构建产物位于 `macos/build/A Console.app`。每次构建会递增仓库根目录中的 `VERSION`。
+
+维护者发布桌面安装包时，使用[双平台发布流程](docs/desktop-release.md)将同一份安装包和 SHA-256 上传到 GitHub 与 Gitee。
 
 ## 许可证
 

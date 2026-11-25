@@ -18,4 +18,4 @@ py -3.14 -m venv .venv-windows
 
 GitHub Actions 的 **Windows console** 工作流运行轨迹和桥接测试、构建安装包并生成 SHA-256。也可在 Windows 开发机进入 `windows` 目录，使用仓库同一虚拟环境依次执行 `python -m PyInstaller --noconfirm bridge.spec`、`python -m PyInstaller --noconfirm --windowed --paths .. --icon a-console.ico --add-data "a-console.ico:." --name "A Console" console.py` 和 `ISCC.exe Installer.iss`。
 
-发布前先在普通权限下，用干净 Windows 和真实 iPhone 验证打包后的桥接可枚举设备、定位到与真实位置明显不同的测试点、回放样例并恢复真实位置。随后使用最终安装包验证首次配对、开发者镜像准备、三种格式、暂停与跳转、自然结束、两台设备时的目标绑定、拔线后继续或清除、正常退出和强退后的恢复。安装机须没有 Python 和 uv。记录手机型号、iOS 与 Windows 版本，再将安装包和 SHA-256 上传 Release。当前尚未完成 Windows 真机验收。
+发布前先在普通权限下，用干净 Windows 和真实 iPhone 验证打包后的桥接可枚举设备、定位到与真实位置明显不同的测试点、回放样例并恢复真实位置。随后使用最终安装包验证首次配对、开发者镜像准备、三种格式、暂停与跳转、自然结束、两台设备时的目标绑定、拔线后继续或清除、正常退出和强退后的恢复。安装机须没有 Python 和 uv。记录手机型号、iOS 与 Windows 版本，按[双平台发布流程](../docs/desktop-release.md)上传安装包和 SHA-256。当前尚未完成 Windows 真机验收。
