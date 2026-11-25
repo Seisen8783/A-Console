@@ -63,8 +63,7 @@ begin
     RaiseException(SysErrorMessage(ResultCode));
 
   if not RegKeyExists(HKLM, AppleDeviceServiceKey) then
-    RaiseException(Format('Apple Mobile Device Service was not found after setup (exit code %d).',
-      [ResultCode]));
+    RaiseException(Format('Apple Mobile Device Service was not found after setup (exit code %d).', [ResultCode]));
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
