@@ -6,7 +6,7 @@
 
 ## 一、下载 macOS & Windows 版本
 
-- **A Console 2.0.41**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-2.0.41-macOS.dmg)
+- **A Console 2.0.42**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.42/A-Console-2.0.42-macOS.dmg)
 - **Windows 0.1.0 测试版**：[下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/desktop-v2.0.41/A-Console-0.1.0-Windows-x64.exe)
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
@@ -28,7 +28,7 @@ Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.41-macOS.dmg`。
+2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.42-macOS.dmg`。
 3. 把窗口里的 **A Console.app** 拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
