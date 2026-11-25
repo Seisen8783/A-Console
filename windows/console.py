@@ -21,6 +21,11 @@ from routes import fit_loop, normalize, read_route, timeline
 
 
 REPOSITORY_URL = "https://github.com/Seisen8783/A-Console"
+DEFAULT_TRACK = (
+    Path(sys.executable).parent / "tracks" / "default-track.kmz"
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parents[1] / "macos/Sources/UnRealConsole/Resources/default-track.kmz"
+)
 
 
 class Preview(QWidget):
@@ -94,6 +99,8 @@ class Console(QWidget):
         self.devices = QComboBox()
         self.refresh = QPushButton("刷新 USB")
         self.refresh.clicked.connect(lambda: self.launch("list"))
+        self.default_track = QPushButton("默认轨迹")
+        self.default_track.clicked.connect(self.load_default)
         self.open = QPushButton("导入 GPX / KML / KMZ")
         self.open.clicked.connect(self.choose)
         guide = QPushButton("使用引导")
@@ -135,7 +142,7 @@ class Console(QWidget):
         self.status = QLabel("等待 USB 设备")
         self.status.setWordWrap(True)
         layout = QVBoxLayout(self)
-        for row in ((self.devices, self.refresh, self.open, self.source, guide),
+        for row in ((self.devices, self.refresh, self.default_track, self.open, self.source, guide),
                     (QLabel("配速"), self.pace, QLabel("圈数"), self.laps, QLabel("目标距离"), self.km),
                     (QLabel("坐标基准"), self.datum, QLabel("向东"), self.east,
                      QLabel("向北"), self.north, self.centerline),
@@ -154,6 +161,7 @@ class Console(QWidget):
         self.centerline.toggled.connect(self.update_preview)
         self.sync_controls()
         self.launch("list")
+        self.load_default()
 
     def pending(self):
         return self.marker.read_text(encoding="utf-8") if self.marker.exists() else ""
@@ -176,7 +184,7 @@ class Console(QWidget):
         self.pause.setText("继续" if self.paused else "暂停")
         self.seek.setEnabled(playing)
         self.restore.setEnabled(playing or (not busy and bool(self.pending() or serial)))
-        for widget in (self.refresh, self.devices, self.open, self.pace, self.km,
+        for widget in (self.refresh, self.devices, self.default_track, self.open, self.pace, self.km,
                        self.datum, self.east, self.north, self.centerline):
             widget.setEnabled(not busy and (not self.detached or widget in (self.refresh, self.devices)))
         self.laps.setEnabled(self.km.value() == 0 and not busy and not self.detached)
@@ -185,6 +193,9 @@ class Console(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "导入轨迹", "", "轨迹 (*.gpx *.kml *.kmz)")
         if path:
             self.load(path)
+
+    def load_default(self):
+        self.load(DEFAULT_TRACK, bundled=True)
 
     def dragEnterEvent(self, event):
         if self.open.isEnabled() and event.mimeData().hasUrls():
@@ -195,15 +206,19 @@ class Console(QWidget):
         if self.open.isEnabled() and len(urls) == 1 and urls[0].isLocalFile():
             self.load(urls[0].toLocalFile())
 
-    def load(self, path):
+    def load(self, path, *, bundled=False):
         try:
             if Path(path).suffix.lower() not in (".gpx", ".kml", ".kmz"):
                 raise ValueError("请选择 GPX、KML 或 KMZ")
-            self.segments, self.gpx = read_route(path)
+            segments, gpx = read_route(path)
         except Exception as error:
-            self.status.setText(f"导入失败：{error}")
+            message = "无法加载默认轨迹" if bundled else "导入失败"
+            self.status.setText(f"{message}：{error}")
             return
-        self.source.setText(Path(path).name)
+        if bundled:
+            self.datum.setCurrentText("WGS-84")
+        self.segments, self.gpx = segments, gpx
+        self.source.setText("已载入默认轨迹" if bundled else Path(path).name)
         self.update_preview()
         self.sync_controls()
 

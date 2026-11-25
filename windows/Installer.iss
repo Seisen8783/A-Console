@@ -1,5 +1,5 @@
 #ifndef AppVersion
-#define AppVersion "0.1.2"
+#define AppVersion "0.1.3"
 #endif
 [Setup]
 AppId=UnRealConsoleWindows
@@ -26,6 +26,7 @@ Source: "dist\A Console\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversio
 Source: "dist\bridge\*"; DestDir: "{app}\bridge"; Flags: recursesubdirs ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"
 Source: "..\macos\Tests\Fixtures\sample.gpx"; DestDir: "{app}\samples"
+Source: "..\macos\Sources\UnRealConsole\Resources\default-track.kmz"; DestDir: "{app}\tracks"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\A Console"; Filename: "{app}\A Console.exe"

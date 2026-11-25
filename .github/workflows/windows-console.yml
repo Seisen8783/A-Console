@@ -1,9 +1,9 @@
 name: Windows console
 on:
   push:
-    paths: ['windows/**', 'macos/Sources/UnRealConsole/Resources/device_bridge.py', '.github/workflows/windows-console.yml']
+    paths: ['windows/**', 'macos/Sources/UnRealConsole/Resources/device_bridge.py', 'macos/Sources/UnRealConsole/Resources/default-track.kmz', '.github/workflows/windows-console.yml']
   pull_request:
-    paths: ['windows/**', 'macos/Sources/UnRealConsole/Resources/device_bridge.py', '.github/workflows/windows-console.yml']
+    paths: ['windows/**', 'macos/Sources/UnRealConsole/Resources/device_bridge.py', 'macos/Sources/UnRealConsole/Resources/default-track.kmz', '.github/workflows/windows-console.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -36,6 +36,12 @@ jobs:
           $appDir = Join-Path $env:RUNNER_TEMP AConsoleSmoke
           $setup = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$appDir`"" -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)" }
+          $installedTrack = Join-Path $appDir 'tracks\default-track.kmz'
+          $sourceTrack = '..\macos\Sources\UnRealConsole\Resources\default-track.kmz'
+          if (-not (Test-Path $installedTrack)) { throw "Default track missing from installation" }
+          if ((Get-FileHash $installedTrack).Hash -ne (Get-FileHash $sourceTrack).Hash) {
+            throw "Installed default track differs from the source"
+          }
           $executable = Join-Path $appDir 'A Console.exe'
 
           function Test-AppWindow($expectedTitle) {

@@ -12,7 +12,7 @@ py -3.14 -m venv .venv-windows
 .\.venv-windows\Scripts\python.exe windows/console.py
 ```
 
-导入 GPX、KML 或 KMZ 后，可在离线画布查看轨迹并选择 USB 设备。GPX 需要完整时间戳才能回放。KML/KMZ 没有时间戳时按输入配速生成时间。回放结束返回轨迹起点。使用完毕后点「恢复真实定位」，再在手机上确认。
+启动后会自动预览内置默认轨迹，也可导入 GPX、KML 或 KMZ。导入后点击「默认轨迹」可切回内置路线。GPX 需要完整时间戳才能回放。KML/KMZ 没有时间戳时按输入配速生成时间。回放结束返回轨迹起点。使用完毕后点「恢复真实定位」，再在手机上确认。
 
 ## 构建和验收
 
