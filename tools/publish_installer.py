@@ -82,6 +82,7 @@ def publish_to_gitee(directory, paths):
         git("commit", "-m", f"Publish {paths[0].name} on Gitee")
         git("push", GITEE_REMOTE, "HEAD:refs/heads/main")
     revision = git("rev-parse", "HEAD", capture_output=True, text=True).stdout.strip()
+    print(f"Gitee installer (login required): https://gitee.com/{GITEE_REPO}/raw/main/installers/{paths[0].name}")
     print(f"Gitee ZIP: https://gitee.com/{GITEE_REPO}/repository/archive/{revision}.zip")
 
 
@@ -126,7 +127,7 @@ def main():
                 ["gh", "release", "edit", args.tag, "--repo", GITHUB_REPO, "--draft=false"],
                 check=True,
             )
-    print(f"GitHub Release: https://github.com/{GITHUB_REPO}/releases/tag/{args.tag}")
+    print(f"GitHub installer: https://github.com/{GITHUB_REPO}/releases/download/{args.tag}/{filename}")
 
 
 if __name__ == "__main__":

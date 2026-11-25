@@ -6,12 +6,12 @@
 
 ## 一、下载 macOS & Windows 版本
 
-- **A Console 2.0.43**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
-- **Windows 0.1.1 测试版**：[下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.1/A-Console-0.1.1-Windows-x64.exe)
+- **A Console 2.0.43**：[下载 macOS DMG](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg) · [Gitee DMG（需登录）](https://gitee.com/songxiuyu2077/A-Console/raw/main/installers/A-Console-2.0.43-macOS.dmg)
+- **Windows 0.1.1 测试版**：[GitHub 下载 x64 EXE](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.1/A-Console-0.1.1-Windows-x64.exe) · [Gitee 下载 x64 EXE（需登录）](https://gitee.com/songxiuyu2077/A-Console/raw/main/installers/A-Console-0.1.1-Windows-x64.exe)
 - **历史 DMG（2.0.36）**：[下载历史 macOS 安装包](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.36/UnReal-Console-2.0.36-macOS.dmg)
 - **原版 ZIP（0.2.0）**：[查看原 macOS 发布页](https://github.com/Seisen8783/A-Console/releases/tag/macos-v0.2.0)
 
-**Gitee 下载** · [免登录下载 ZIP](https://gitee.com/songxiuyu2077/A-Console/repository/archive/main.zip)，解压后在 `installers/` 中找到 Windows EXE 或 macOS DMG。
+**Gitee 免登录备用下载** · [下载 ZIP](https://gitee.com/songxiuyu2077/A-Console/repository/archive/main.zip)，解压后在 `installers/` 中找到 Windows EXE 或 macOS DMG。
 
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
