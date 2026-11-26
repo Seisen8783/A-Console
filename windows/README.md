@@ -1,6 +1,10 @@
 # A Console Windows
 
-目标平台为原生 Windows 11 x64 和支持 USB 开发者服务的 iOS 17.4 或以上版本。无需 Xcode。如果电脑还没有 Apple Mobile Device Service，可在安装 A Console 时勾选 Apple 设备支持选项。安装器会从 Apple 下载 Windows 版 iTunes，请在 Apple 安装向导中完成安装。此步骤需要联网和管理员权限。也可提前从 Apple 下载并安装 iTunes，再离线安装 A Console。通过数据线连接 iPhone，解锁、信任电脑，并在「设置 → 隐私与安全性」启用开发者模式。若没有开关，可以先用上游的 [reveal-developer-mode](https://doronz88.github.io/pymobiledevice3/latest/cli/amfi/) 显示开关。首次准备设备开发者镜像可能需要联网。
+目标平台为原生 Windows 11 x64 和支持 USB 开发者服务的 iOS 17.4 或以上版本。无需 Xcode。
+
+如果电脑还没有 Apple Mobile Device Service，可在 A Console 安装向导中勾选 **Install Apple device support with iTunes**。离线安装时，提前从 [Apple 下载此版本的 iTunes](https://secure-appldnld.apple.com/itunes12/142-28289-20261026-6acff6c8-72eb-4045-84eb-fd35239ac645/iTunes64Setup.exe)，将 `iTunes64Setup.exe` 放在 A Console 安装包旁边。向导会优先读取并校验同目录的安装文件。如未找到本地文件，向导会从 Apple 下载同一版本。安装 iTunes 时按提示授予管理员权限。
+
+通过数据线连接 iPhone，解锁、信任电脑，并在「设置 → 隐私与安全性」启用开发者模式。若没有开关，可以先用上游的 [reveal-developer-mode](https://doronz88.github.io/pymobiledevice3/latest/cli/amfi/) 显示开关。首次准备设备开发者镜像可能需要联网。
 
 ## 从源码运行
 

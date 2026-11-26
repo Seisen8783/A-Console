@@ -1,5 +1,5 @@
 #ifndef AppVersion
-#define AppVersion "0.1.3"
+#define AppVersion "0.1.4"
 #endif
 [Setup]
 AppId=UnRealConsoleWindows
@@ -19,7 +19,7 @@ AppPublisherURL=https://github.com/Seisen8783/A-Console
 DefaultDirName={localappdata}\Programs\A Console
 
 [Tasks]
-Name: "appledevices"; Description: "Download and install Apple device support (requires internet and administrator approval)"; Flags: unchecked; Check: NeedsAppleDeviceSupport
+Name: "appledevices"; Description: "Install Apple device support with iTunes (requires administrator approval)"; Flags: unchecked; Check: NeedsAppleDeviceSupport
 
 [Files]
 Source: "dist\A Console\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -46,21 +46,41 @@ begin
   Result := not WizardSilent and not RegKeyExists(HKLM, AppleDeviceServiceKey);
 end;
 
+procedure PrepareAppleInstaller(const InstallerPath: String);
+var
+  LocalInstaller: String;
+begin
+  LocalInstaller := ExpandConstant('{src}\') + AppleInstallerName;
+  if FileExists(LocalInstaller) then
+  begin
+    Log('Using the local iTunes installer beside A Console Setup.');
+    if not FileCopy(LocalInstaller, InstallerPath, True) then
+      RaiseException('Could not copy the local iTunes installer.');
+    if CompareText(GetSHA256OfFile(InstallerPath), AppleInstallerSHA256) <> 0 then
+      RaiseException('The local iTunes installer could not be verified. Download the matching installer from the A Console installation guide.');
+  end
+  else
+  begin
+    AppleDownload.Clear;
+    AppleDownload.Add(AppleInstallerURL, AppleInstallerName, AppleInstallerSHA256);
+    AppleDownload.Show;
+    try
+      AppleDownload.Download;
+    finally
+      AppleDownload.Hide;
+    end;
+  end;
+end;
+
 procedure InstallAppleDeviceSupport;
 var
+  InstallerPath: String;
   ResultCode: Integer;
 begin
-  AppleDownload.Clear;
-  AppleDownload.Add(AppleInstallerURL, AppleInstallerName, AppleInstallerSHA256);
-  AppleDownload.Show;
-  try
-    AppleDownload.Download;
-  finally
-    AppleDownload.Hide;
-  end;
-
-  if not ShellExec('runas', ExpandConstant('{tmp}\') + AppleInstallerName, '',
-      ExpandConstant('{tmp}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
+  InstallerPath := ExpandConstant('{tmp}\') + AppleInstallerName;
+  PrepareAppleInstaller(InstallerPath);
+  if not ShellExec('runas', InstallerPath, '', ExpandConstant('{tmp}'),
+      SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
     RaiseException(SysErrorMessage(ResultCode));
 
   if not RegKeyExists(HKLM, AppleDeviceServiceKey) then
