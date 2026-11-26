@@ -7,22 +7,31 @@ import json
 import os
 from pathlib import Path
 from multiprocessing import freeze_support
+import plistlib
 import signal
 import sys
 import threading
 
+from requests.exceptions import RequestException
+
 from pymobiledevice3 import usbmux
 from pymobiledevice3.exceptions import (
     AlreadyMountedError, ConnectionFailedError, ConnectionTerminatedError,
-    DeviceNotFoundError, InvalidServiceError, NoDeviceConnectedError,
+    DeviceNotFoundError, DevicePathError, InvalidServiceError, NoDeviceConnectedError,
+    NoSuchBuildIdentityError,
     NotPairedError, NotTrustedError, PairingDialogResponsePendingError,
-    PasswordRequiredError, UserDeniedPairingError,
+    PasswordRequiredError, TSSError, UserDeniedPairingError,
 )
 from pymobiledevice3.lockdown import create_using_usbmux
 from pymobiledevice3.remote.rsd_tunnel import PreferredRsdTunnel
+from pymobiledevice3.safe_paths import resolve_device_path
+from pymobiledevice3.services.cryptexd import CRYPTEX1_PAYLOAD_KEYS, CryptexdService
 from pymobiledevice3.services.dvt.instruments.dvt_provider import DvtProvider
 from pymobiledevice3.services.dvt.instruments.location_simulation import LocationSimulation
-from pymobiledevice3.services.mobile_image_mounter import auto_mount
+from pymobiledevice3.services.mobile_image_mounter import (
+    LATEST_DDI_BUILD_ID, PersonalizedImageMounter, auto_mount, select_build_identity,
+    uses_cryptex_image,
+)
 
 
 def emit(kind, **values):
@@ -50,6 +59,67 @@ async def list_usb_devices():
     emit("devices", devices=devices)
 
 
+def local_ddi_restore_dirs():
+    configured = os.environ.get("A_CONSOLE_DDI_RESTORE_DIR")
+    if configured:
+        yield Path(configured).expanduser()
+    if sys.platform == "darwin":
+        for library in (Path.home() / "Library", Path("/Library")):
+            yield library / "Developer/DeveloperDiskImages/iOS_DDI/Restore"
+
+
+def ddi_payloads(restore_dir, identity, keys):
+    paths = tuple(resolve_device_path(restore_dir, identity["Manifest"][key]["Info"]["Path"]) for key in keys)
+    if not all(path.is_file() for path in paths):
+        raise FileNotFoundError("Developer disk image payload missing")
+    return paths
+
+
+async def mount_local_developer_image(rsd):
+    restore_dirs = tuple(local_ddi_restore_dirs())
+    if not restore_dirs:
+        return False
+
+    cryptex = uses_cryptex_image(rsd)
+    async with AsyncExitStack() as stack:
+        mounter = None
+        identifiers = None
+        for restore_dir in restore_dirs:
+            manifest_path = restore_dir / "BuildManifest.plist"
+            try:
+                manifest = plistlib.loads(manifest_path.read_bytes())
+                if manifest.get("ProductBuildVersion") != LATEST_DDI_BUILD_ID:
+                    continue
+            except (AttributeError, OSError, ValueError, plistlib.InvalidFileException):
+                continue
+
+            if cryptex:
+                try:
+                    identity = next(
+                        entry for entry in manifest["BuildIdentities"]
+                        if all(key in entry["Manifest"] for key in CRYPTEX1_PAYLOAD_KEYS)
+                    )
+                    ddi_payloads(restore_dir, identity, CRYPTEX1_PAYLOAD_KEYS)
+                except (OSError, ValueError, TypeError, KeyError, StopIteration, DevicePathError):
+                    continue
+                emit("state", message="正在使用本机的 iOS 开发者镜像")
+                await CryptexdService(rsd).auto_install_ddi(restore_dir)
+                return True
+
+            if mounter is None:
+                mounter = await stack.enter_async_context(PersonalizedImageMounter(lockdown=rsd))
+                identifiers = await mounter.query_personalization_identifiers()
+            try:
+                identity = select_build_identity(manifest, identifiers)
+                image, trustcache = ddi_payloads(restore_dir, identity, ("PersonalizedDMG", "LoadableTrustCache"))
+            except (OSError, ValueError, TypeError, KeyError, DevicePathError, NoSuchBuildIdentityError):
+                continue
+            emit("state", message="正在使用本机的 iOS 开发者镜像")
+            await mounter.mount(image, manifest_path, trustcache)
+            return True
+    return False
+
+
 @asynccontextmanager
 async def location_session(serial):
     if not any(device.is_usb and device.serial == serial for device in await usbmux.list_devices()):
@@ -73,9 +143,13 @@ async def location_session(serial):
         try:
             rsd.get_service_port(DvtProvider.RSD_SERVICE_NAME)
         except InvalidServiceError:
-            emit("state", message="准备开发者镜像，首次使用可能需要下载")
             with suppress(AlreadyMountedError):
-                await auto_mount(rsd)
+                try:
+                    if not await mount_local_developer_image(rsd):
+                        emit("state", message="正在准备 iOS 开发者镜像，缺少本地缓存时会下载")
+                        await auto_mount(rsd)
+                except (RequestException, TSSError) as error:
+                    raise RuntimeError("无法准备 iOS 开发者镜像。请检查网络连接后重试，首次授权可能需要连接 Apple。") from error
         else:
             async with DvtProvider(rsd) as dvt, LocationSimulation(dvt) as location:
                 yield location

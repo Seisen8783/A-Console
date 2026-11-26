@@ -6,6 +6,8 @@
 
 安装包已内置 Python 和设备桥接依赖，首次启动和刷新 USB 设备可离线完成。新版 DMG 和安装步骤见[仓库首页](../README.md)。
 
+定位模拟会优先使用设备上已启用的开发者服务。已有相容的 iOS 开发者镜像时，可以将 `A_CONSOLE_DDI_RESTORE_DIR` 指向包含 `BuildManifest.plist` 和对应载荷的 `Restore` 目录。Mac 也会检查 Xcode 在系统及用户资料库中准备的镜像。便携版 uv 位于应用包内。应用包不含 Apple 镜像文件，设备如需重新个性化授权仍可能需要联网。
+
 ## 回放轨迹
 
 1. 用 USB 数据线连接 iPhone，解锁并信任 Mac。iPhone 需要运行 iOS 17 或更新版本并开启[开发者模式](https://developer.apple.com/documentation/xcode/enabling-developer-mode-on-a-device)。如果设置里没有该开关，可先在 Xcode 的设备窗口确认配对，再回到手机检查。

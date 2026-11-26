@@ -1,5 +1,5 @@
 #ifndef AppVersion
-#define AppVersion "0.1.4"
+#define AppVersion "0.1.5"
 #endif
 [Setup]
 AppId=UnRealConsoleWindows
@@ -10,8 +10,9 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 OutputDir=dist
 OutputBaseFilename=A-Console-{#AppVersion}-Windows-x64
-Compression=lzma2
+Compression=lzma2/ultra64
 SolidCompression=yes
+UsePreviousTasks=no
 WizardResizable=no
 SetupIconFile=a-console.ico
 UninstallDisplayIcon={app}\A Console.exe
@@ -19,11 +20,12 @@ AppPublisherURL=https://github.com/Seisen8783/A-Console
 DefaultDirName={localappdata}\Programs\A Console
 
 [Tasks]
-Name: "appledevices"; Description: "Install Apple device support with iTunes (requires administrator approval)"; Flags: unchecked; Check: NeedsAppleDeviceSupport
+Name: "appledevices"; Description: "Install Apple device support with iTunes (requires administrator approval)"; Check: NeedsAppleDeviceSupport
 
 [Files]
 Source: "dist\A Console\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "dist\bridge\*"; DestDir: "{app}\bridge"; Flags: recursesubdirs ignoreversion
+Source: "dist\uv\*"; DestDir: "{app}\tools\uv"; Flags: ignoreversion; Check: NeedsBundledUV
 Source: "..\LICENSE"; DestDir: "{app}"
 Source: "..\macos\Tests\Fixtures\sample.gpx"; DestDir: "{app}\samples"
 Source: "..\macos\Sources\UnRealConsole\Resources\default-track.kmz"; DestDir: "{app}\tracks"; Flags: ignoreversion
@@ -40,6 +42,11 @@ const
 
 var
   AppleDownload: TDownloadWizardPage;
+
+function NeedsBundledUV: Boolean;
+begin
+  Result := FileSearch('uv.exe', GetEnv('PATH')) = '';
+end;
 
 function NeedsAppleDeviceSupport: Boolean;
 begin

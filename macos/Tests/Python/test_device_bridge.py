@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager, redirect_stdout
 from io import StringIO
 import json
 from pathlib import Path
+import plistlib
 import sys
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -12,10 +14,44 @@ from pymobiledevice3.exceptions import ConnectionTerminatedError
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Sources/UnRealConsole/Resources"))
-from device_bridge import ReplayCommands, main, operate
+from device_bridge import CRYPTEX1_PAYLOAD_KEYS, LATEST_DDI_BUILD_ID, ReplayCommands, main, mount_local_developer_image, operate
 
 
 class DeviceBridgeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_local_cryptex_reuses_matching_complete_restore_directory(self):
+        service = type("DDIService", (), {"auto_install_ddi": AsyncMock()})()
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            incomplete = root / "incomplete"
+            complete = root / "complete"
+            keys = {
+                key: {"Info": {"Path": f"payload-{index}"}}
+                for index, key in enumerate(CRYPTEX1_PAYLOAD_KEYS)
+            }
+            for directory in (incomplete, complete):
+                directory.mkdir()
+                (directory / "BuildManifest.plist").write_bytes(plistlib.dumps({
+                    "ProductBuildVersion": LATEST_DDI_BUILD_ID,
+                    "BuildIdentities": [{"Manifest": keys}],
+                }))
+            for entry in keys.values():
+                (complete / entry["Info"]["Path"]).touch()
+            with patch("device_bridge.local_ddi_restore_dirs", return_value=(incomplete, complete)), \
+                 patch("device_bridge.uses_cryptex_image", return_value=True), \
+                 patch("device_bridge.CryptexdService", return_value=service), redirect_stdout(StringIO()):
+                self.assertTrue(await mount_local_developer_image(object()))
+            service.auto_install_ddi.assert_awaited_once_with(complete)
+
+    async def test_local_developer_image_skips_incompatible_build(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "BuildManifest.plist").write_bytes(plistlib.dumps({"ProductBuildVersion": "incompatible"}))
+            with patch("device_bridge.local_ddi_restore_dirs", return_value=(root,)), \
+                 patch("device_bridge.uses_cryptex_image", return_value=False), \
+                 patch("device_bridge.PersonalizedImageMounter") as mounter:
+                self.assertFalse(await mount_local_developer_image(object()))
+            mounter.assert_not_called()
+
     async def run_operation(self, device, stop, action="play"):
         @asynccontextmanager
         async def connect(serial):

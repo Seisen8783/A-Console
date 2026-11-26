@@ -6,8 +6,8 @@
 
 ## 一、下载 macOS & Windows 版本
 
-- **macOS 2.0.44** · [下载 macOS 安装包（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.44/A-Console-2.0.44-macOS.dmg)
-- **Windows 0.1.4 测试版** · [下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.4/A-Console-0.1.4-Windows-x64.exe)
+- **macOS 2.0.45** · [下载 macOS 安装包（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.45/A-Console-2.0.45-macOS.dmg)
+- **Windows 0.1.5 测试版** · [下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.5/A-Console-0.1.5-Windows-x64.exe)
 
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
 
@@ -26,14 +26,14 @@ Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.44-macOS.dmg`。
+2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.45-macOS.dmg`。
 3. 把窗口里的 **A Console.app** 拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
 
 ### 2. 离线启动
 
-安装包已内置 Python 和全部 USB 设备桥接依赖。首次打开应用和刷新 USB 设备列表可离线完成。首次使用定位模拟时，如果 Mac 需要下载 iOS 开发者镜像，请先联网。
+安装包内置 Python、USB 设备桥接依赖和便携版 uv，USB 连接使用 macOS 自带的服务。首次打开应用和刷新 USB 设备列表可离线完成。定位模拟优先使用设备上已启用的开发者服务，再检查兼容的本机开发者镜像。缺少镜像或需要 Apple 个性化授权时可能需要联网。
 
 ### 3. 准备并连接 iPhone
 
@@ -59,9 +59,10 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 
 ### 1. 安装控制台和 USB 组件
 
-1. [下载 A Console 0.1.4 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.4/A-Console-0.1.4-Windows-x64.exe)，双击运行。
-2. 如果尚未安装 Apple Mobile Device Service，在向导中勾选 **Install Apple device support with iTunes**。安装器会校验并打开 iTunes 安装程序。按提示授予管理员权限，并完成 Apple 安装向导。
-3. 离线安装时，提前从 [Apple 下载此版本的 iTunes](https://secure-appldnld.apple.com/itunes12/142-28289-20261026-6acff6c8-72eb-4045-84eb-fd35239ac645/iTunes64Setup.exe)，把原名为 `iTunes64Setup.exe` 的文件和 A Console 安装包放在同一目录。安装器会优先使用本地文件。若同目录没有该文件，安装器会在勾选后从 Apple 下载。
+1. [下载 A Console 0.1.5 Windows x64 安装包](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.5/A-Console-0.1.5-Windows-x64.exe)，双击运行。
+2. 如果尚未安装 Apple Mobile Device Service，安装向导会默认选中 **Install Apple device support with iTunes**。安装器会校验并打开 iTunes 安装程序。按提示授予管理员权限，并完成 Apple 安装向导。
+3. 离线安装时，提前从 [Apple 下载此版本的 iTunes](https://secure-appldnld.apple.com/itunes12/142-28289-20261026-6acff6c8-72eb-4045-84eb-fd35239ac645/iTunes64Setup.exe)，把原名为 `iTunes64Setup.exe` 的文件和 A Console 安装包放在同一目录。安装器会优先使用本地文件。若同目录没有该文件，安装器会从 Apple 下载。
+4. 安装包内置便携版 uv。安装器仅在 PATH 中找不到 uv 时将其放入 A Console 自己的工具目录。
 
 ### 2. 连接 iPhone
 

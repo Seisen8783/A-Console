@@ -23,6 +23,8 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm bridge.spec
           python -m PyInstaller --noconfirm --windowed --paths .. --icon a-console.ico --add-data "a-console.ico:." --name "A Console" console.py
+          powershell -NoProfile -File stage-uv.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Could not stage uv" }
           choco install innosetup -y --no-progress
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Installer.iss
           $installer = Get-ChildItem dist\A-Console-*-Windows-x64.exe
@@ -34,13 +36,35 @@ jobs:
         run: |
           $installer = Get-Item dist\A-Console-*-Windows-x64.exe
           $appDir = Join-Path $env:RUNNER_TEMP AConsoleSmoke
-          $setup = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$appDir`"" -Wait -PassThru
+          $originalPath = $env:PATH
+          try {
+            $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            $setup = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$appDir`"" -Wait -PassThru
+          } finally {
+            $env:PATH = $originalPath
+          }
           if ($setup.ExitCode -ne 0) { throw "Installer exited with code $($setup.ExitCode)" }
           $installedTrack = Join-Path $appDir 'tracks\default-track.kmz'
           $sourceTrack = '..\macos\Sources\UnRealConsole\Resources\default-track.kmz'
           if (-not (Test-Path $installedTrack)) { throw "Default track missing from installation" }
           if ((Get-FileHash $installedTrack).Hash -ne (Get-FileHash $sourceTrack).Hash) {
             throw "Installed default track differs from the source"
+          }
+          $uvDir = Join-Path $appDir 'tools\uv'
+          $uv = Join-Path $uvDir 'uv.exe'
+          $uvVersion = & $uv --offline --version
+          if ($LASTEXITCODE -ne 0 -or $uvVersion -notmatch '^uv 0\.13\.10\b') {
+            throw "Bundled uv did not start: $uvVersion"
+          }
+          $existingUVDir = Join-Path $env:RUNNER_TEMP AConsoleExistingUV
+          try {
+            $env:PATH = "$uvDir;$originalPath"
+            $setup = Start-Process $installer.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$existingUVDir`"" -Wait -PassThru
+          } finally {
+            $env:PATH = $originalPath
+          }
+          if ($setup.ExitCode -ne 0 -or (Test-Path (Join-Path $existingUVDir 'tools\uv\uv.exe'))) {
+            throw 'Setup did not skip its uv copy when a uv executable was already on PATH'
           }
           $executable = Join-Path $appDir 'A Console.exe'
 

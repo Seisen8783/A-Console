@@ -70,6 +70,16 @@ curl -fsSL --retry 3 "https://github.com/astral-sh/uv/releases/download/$uv_vers
 tar -xzf "$stage/$uv_archive" -C "$stage" "uv-$uv_target/uv"
 uv="$stage/uv-$uv_target/uv"
 
+# Keep a private uv copy and its licenses available even without a system installation.
+install -m 755 "$uv" "$app/Contents/MacOS/uv"
+uv_licenses="$app/Contents/Resources/uv-licenses"
+mkdir -p "$uv_licenses"
+for license in LICENSE-APACHE LICENSE-MIT; do
+    curl -fsSL --retry 3 "https://raw.githubusercontent.com/astral-sh/uv/$uv_version/$license" \
+        -o "$uv_licenses/$license"
+done
+codesign --force --sign - "$app/Contents/MacOS/uv"
+
 # Populate the app's own Python installation before signing it.
 python_version=3.14.10
 macos_minimum=14.0
