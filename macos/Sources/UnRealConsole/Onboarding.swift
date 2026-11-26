@@ -27,7 +27,7 @@ struct OnboardingView: View {
     private let steps = [
         Step(title: "连接 iPhone", detail: "用数据线连接 iPhone。解锁手机，轻点「信任」。",
              labels: ["Mac", "USB", "信任此电脑"], icons: ["laptopcomputer", "cable.connector", "iphone"],
-             help: "首次连接时，应用会联网准备设备连接程序。"),
+             help: "第一次使用定位模拟时，若需要准备 iOS 开发者镜像，请让 Mac 联网。"),
         Step(title: "开启开发者模式", detail: "开启开发者模式，按手机提示重启并确认。",
              labels: ["设置", "隐私与安全性", "开发者模式"], icons: ["gear", "lock.shield", "hammer"],
              help: "看不到开关时，可在 Xcode 的设备窗口确认 iPhone 已配对。"),

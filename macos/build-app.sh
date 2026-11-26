@@ -36,19 +36,25 @@ if ! swift build --package-path "$package_dir" --configuration release 2>/tmp/un
     fi
 fi
 bin_dir=$(swift build --package-path "$package_dir" --configuration release --disable-sandbox --show-bin-path)
-app="$package_dir/build/A Console.app"
+build_dir="$package_dir/build"
+mkdir -p "$build_dir"
+stage=$(mktemp -d "$build_dir/.app-stage.XXXXXX")
+trap 'rm -rf "$stage"' EXIT
+app="$stage/A Console.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 install -m 755 "$bin_dir/UnRealConsole" "$app/Contents/MacOS/UnRealConsole"
 ditto "$bin_dir/UnRealConsole_UnRealConsole.bundle" "$app/Contents/Resources/UnRealConsole_UnRealConsole.bundle"
 
-# Bundle a verified upstream uv binary for the executable's architecture.
+# Use verified build tools for the app executable's architecture.
 uv_version=0.13.10
 case "$(lipo -archs "$app/Contents/MacOS/UnRealConsole")" in
     arm64)
+        python_arch=aarch64
         uv_target=aarch64-apple-darwin
         uv_sha256=e419bf07533bdbf48795fc793601c834dd79db57a8c49ce8e25cfe3a8639958d
         ;;
     x86_64)
+        python_arch=x86_64
         uv_target=x86_64-apple-darwin
         uv_sha256=153e03197588204c04fc4c81cc4bafbfa4280222a385e4ee36a87aeec0ae63b4
         ;;
@@ -57,20 +63,23 @@ case "$(lipo -archs "$app/Contents/MacOS/UnRealConsole")" in
         exit 1
         ;;
 esac
-uv_tmp=$(mktemp -d -t a-console-uv)
-trap 'rm -rf "$uv_tmp"' EXIT
 uv_archive="uv-$uv_target.tar.gz"
 curl -fsSL --retry 3 "https://github.com/astral-sh/uv/releases/download/$uv_version/$uv_archive" \
-    -o "$uv_tmp/$uv_archive"
-(cd "$uv_tmp" && printf '%s  %s\n' "$uv_sha256" "$uv_archive" | shasum -a 256 -c -)
-tar -xzf "$uv_tmp/$uv_archive" -C "$uv_tmp" "uv-$uv_target/uv"
-install -m 755 "$uv_tmp/uv-$uv_target/uv" "$app/Contents/MacOS/uv"
-mkdir -p "$app/Contents/Resources/uv-licenses"
-for license in LICENSE-MIT LICENSE-APACHE; do
-    curl -fsSL --retry 3 "https://raw.githubusercontent.com/astral-sh/uv/$uv_version/$license" \
-        -o "$app/Contents/Resources/uv-licenses/$license"
-done
-codesign --force --sign - "$app/Contents/MacOS/uv"
+    -o "$stage/$uv_archive"
+(cd "$stage" && printf '%s  %s\n' "$uv_sha256" "$uv_archive" | shasum -a 256 -c -)
+tar -xzf "$stage/$uv_archive" -C "$stage" "uv-$uv_target/uv"
+uv="$stage/uv-$uv_target/uv"
+
+# Populate the app's own Python installation before signing it.
+python_version=3.14.10
+macos_minimum=14.0
+"$uv" --no-config python install --install-dir "$stage/python" --no-bin "$python_version"
+runtime="$app/Contents/Resources/python"
+mv "$stage/python/cpython-$python_version-macos-$python_arch-none" "$runtime"
+python="$runtime/bin/python3"
+MACOSX_DEPLOYMENT_TARGET="$macos_minimum" "$uv" --no-config pip install --python "$python" \
+    --python-platform "$uv_target" --no-python-downloads --link-mode copy --break-system-packages --strict \
+    --require-hashes --requirements "$package_dir/bridge-requirements.txt"
 
 # Build the signed app with the current brand icon.
 icon_source="$repo_dir/tools/icon"
@@ -114,7 +123,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>$next_patch</string>
   <key>CFBundleIconFile</key><string>AConsole</string>
   $icon_name
-  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>LSMinimumSystemVersion</key><string>$macos_minimum</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
@@ -122,4 +131,8 @@ PLIST
 
 codesign --force --sign - "$app"
 codesign --verify --strict "$app"
-printf '%s\n' "$app"
+install -m 755 "$uv" "$build_dir/uv"
+final_app="$build_dir/A Console.app"
+rm -rf "$final_app"
+mv "$app" "$final_app"
+printf '%s\n' "$final_app"

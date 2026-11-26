@@ -6,7 +6,7 @@
 
 ## 一、下载 macOS & Windows 版本
 
-- **macOS 2.0.43** · [下载 macOS 安装包（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.43/A-Console-2.0.43-macOS.dmg)
+- **macOS 2.0.44** · [下载 macOS 安装包（DMG）](https://github.com/Seisen8783/A-Console/releases/download/macos-v2.0.44/A-Console-2.0.44-macOS.dmg)
 - **Windows 0.1.3 测试版** · [下载 Windows x64 安装包（EXE）](https://github.com/Seisen8783/A-Console/releases/download/windows-v0.1.3/A-Console-0.1.3-Windows-x64.exe)
 
 macOS 版适用于 Apple 芯片 Mac、macOS 14 或以上，并需要一台运行 iOS 17 或以上的 iPhone。项目现名为 A Console，历史安装包使用 NoReal Console 或 UnReal Console 名称。
@@ -26,14 +26,14 @@ Windows 版面向 Windows 11 x64 和 iOS 17.4 或以上。[查看 Windows 安装
 ### 1. 安装控制台
 
 1. 点击上方的新版 DMG 链接，等待下载完成。
-2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.43-macOS.dmg`。
+2. 在 Mac 的「下载」文件夹中双击 `A-Console-2.0.44-macOS.dmg`。
 3. 把窗口里的 **A Console.app** 拖到 **Applications（应用程序）** 文件夹图标上。
 4. 打开访达，在左侧点击「应用程序」，找到并打开已安装的应用。
 5. 如果 Mac 提示无法验证开发者，这是因为安装包使用临时签名，尚未经过 Apple 公证。确认文件来自本仓库后，可按 [Apple 的说明](https://support.apple.com/zh-cn/102445)在系统设置中选择是否打开。
 
-### 2. 准备设备连接工具
+### 2. 离线启动
 
-A Console 已内置 uv。首次运行时请保持 Mac 联网，应用会自动下载连接 iPhone 所需的 Python 和依赖。
+安装包已内置 Python 和全部 USB 设备桥接依赖。首次打开应用和刷新 USB 设备列表可离线完成。首次使用定位模拟时，如果 Mac 需要下载 iOS 开发者镜像，请先联网。
 
 ### 3. 准备并连接 iPhone
 
@@ -91,7 +91,7 @@ Windows 版为测试版，目标环境为 **Windows 11 x64** 和 **iOS 17.4 或�
 ```bash
 ./macos/build-app.sh
 swift test --package-path macos
-uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v
+"macos/build/A Console.app/Contents/Resources/python/bin/python3" -I -B -m unittest discover -s macos/Tests/Python -v
 ```
 
 运行 `./macos/build-dmg.sh` 可生成带 Finder 布局的 DMG。构建产物位于 `macos/build/A Console.app`。每次构建会递增仓库根目录中的 `VERSION`。

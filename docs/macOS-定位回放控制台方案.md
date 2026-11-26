@@ -15,9 +15,9 @@
 
 | 层 | 实现 |
 | --- | --- |
-| 桌面应用 | SwiftUI + Swift Package Manager，源码放在 `macos/`，构建脚本产出 `UnReal Console.app`。本机先验证 Apple Silicon 构建。 |
+| 桌面应用 | SwiftUI + Swift Package Manager，源码放在 `macos/`，构建脚本产出 `A Console.app`。本机先验证 Apple Silicon 构建。 |
 | 轨迹读取 | 读取 UnReal 使用的 `<trk>/<trkseg>/<trkpt>`。检查经纬度、点数和时间顺序，预览与回放使用同一份解析后的点列。 |
-| 设备桥接 | 固定 `pymobiledevice3 11.61.0`，用 `uv` 管理 Python 环境。应用启动 Python 子进程，通过 JSON Lines 接收设备、进度和错误事件。 |
+| 设备桥接 | 固定 `pymobiledevice3 11.61.0`，在构建时将 Python 和依赖装入应用。应用直接启动内置的 Python 子进程，通过 JSON Lines 接收设备、进度和错误事件。 |
 | 真机服务 | 通过 USB 枚举设备并按 UDID 建立连接。在用户开始回放时检查信任、开发者模式和 DDI，使用 `PreferredRsdTunnel`、`DvtProvider` 和 `LocationSimulation` 发送坐标。 |
 
 固定版本支持 macOS 进程内隧道，近期 iOS 版本走 USB 用户态隧道，早期 iOS 17 在 Mac 上通过原生隧道连接。首版直接管理一次 DVT 会话，以便记录每个点的进度并在终点执行恢复。 [Python API](https://github.com/doronz88/pymobiledevice3/blob/v11.61.0/docs/guides/python-api.md) · [隧道支持说明](https://github.com/doronz88/pymobiledevice3/blob/v11.61.0/docs/guides/ios17-tunnels.md)
@@ -37,7 +37,7 @@
 
 ## 本机使用
 
-1. 在仓库根目录运行 `./macos/build-app.sh`，打开 `macos/build/UnReal Console.app`。桌面端需要 macOS 14 或以上版本以及 `uv`。首次启动设备桥接时，`uv` 可能需要联网准备 Python 3.14 和依赖。
+1. 在仓库根目录运行 `./macos/build-app.sh`，打开 `macos/build/A Console.app`。桌面端需要 macOS 14 或以上版本。构建时会下载 Python 3.14 和依赖，安装后可离线启动设备桥接。
 2. 将 `macos/Tests/Fixtures/sample.gpx` 拖入控制台即可离线预览。样例包含 5 个点，时长 20 秒。
 3. 用数据线连接测试 iPhone，确认信任 Mac 与开发者模式，刷新设备列表后选定设备。开始回放后检查对应点位变化。再分别验证播完恢复、暂停续播、手动恢复及拔线重连后的恢复。
 
@@ -47,4 +47,4 @@ KMZ 和 KML 可直接拖入或通过「选择轨迹」打开。KMZ 优先读取�
 
 启用单圈中线时，右上角显示当前圈和总圈数。暂停后可修改总圈数，最少为当前圈。无原始时间戳的轨迹也可在暂停时调整配速。点击「继续回放」后应用修改，已回放部分的时间和暂停位置仍按原记录显示。
 
-离线验证使用 `swift test --package-path macos` 和 `uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v`。离线通过后记录真机的 iOS 版本、各场景结果及恢复状态。
+离线验证使用 `swift test --package-path macos` 和 [macOS 构建说明](../macos/README.md#从源码构建)中的内置 Python 测试命令。离线通过后记录真机的 iOS 版本、各场景结果及恢复状态。

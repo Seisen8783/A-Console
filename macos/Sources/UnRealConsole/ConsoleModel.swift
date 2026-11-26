@@ -610,8 +610,7 @@ final class ConsoleModel: ObservableObject {
         let output = Pipe()
         let commands = Pipe()
         task.executableURL = executable.url
-        task.arguments = executable.prefix + ["--from", "pymobiledevice3==11.61.0", "--python", "3.14", "python", "-u",
-                          bridge.path, action.rawValue] + [serial, file?.path].compactMap { $0 }
+        task.arguments = executable.prefix + ["-I", "-B", "-u", bridge.path, action.rawValue] + [serial, file?.path].compactMap { $0 }
         if action == .play { task.arguments?.append(contentsOf: ["--index", String(index)]) }
         task.standardOutput = output
         task.standardError = output
@@ -749,9 +748,10 @@ final class ConsoleModel: ObservableObject {
     }
 
     private static var bridgeLauncher: (url: URL, prefix: [String])? {
-        if let bundledUV = Bundle.main.url(forAuxiliaryExecutable: "uv"),
-           FileManager.default.isExecutableFile(atPath: bundledUV.path) {
-            return (bundledUV, ["tool", "run"])
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            guard let python = Bundle.main.resourceURL?.appendingPathComponent("python/bin/python3"),
+                  FileManager.default.isExecutableFile(atPath: python.path) else { return nil }
+            return (python, [])
         }
 
         // SwiftPM development builds use the developer's installed uvx.
@@ -760,6 +760,6 @@ final class ConsoleModel: ObservableObject {
         let directories = path + ["\(home)/.local/bin", "\(home)/.cargo/bin", "/opt/homebrew/bin", "/usr/local/bin"]
         let uvx = directories.map { URL(fileURLWithPath: $0).appendingPathComponent("uvx") }
             .first { FileManager.default.isExecutableFile(atPath: $0.path) }
-        return uvx.map { ($0, []) }
+        return uvx.map { ($0, ["--from", "pymobiledevice3==11.61.0", "--python", "3.14", "python"]) }
     }
 }

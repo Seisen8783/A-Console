@@ -4,7 +4,7 @@
 
 ## 下载与安装
 
-新版 DMG、旧版下载入口和从零开始的安装步骤见[仓库首页](../README.md)。
+安装包已内置 Python 和设备桥接依赖，首次启动和刷新 USB 设备可离线完成。新版 DMG 和安装步骤见[仓库首页](../README.md)。
 
 ## 回放轨迹
 
@@ -63,7 +63,7 @@ iOS 的定位模拟用于开发测试。其他 App 是否显示模拟坐标、�
 ```bash
 ./macos/build-app.sh
 swift test --package-path macos --disable-sandbox
-uvx --from 'pymobiledevice3==11.61.0' --python 3.14 python -m unittest discover -s macos/Tests/Python -v
+"macos/build/A Console.app/Contents/Resources/python/bin/python3" -I -B -m unittest discover -s macos/Tests/Python -v
 ```
 
 受限终端里 SwiftPM 自带的沙箱会因 `sandbox_apply` 失败，需要加 `--disable-sandbox`；

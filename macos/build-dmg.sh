@@ -7,6 +7,7 @@ root=$(cd "$macos_dir/.." && pwd)
 app="$macos_dir/build/A Console.app"
 version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
 stage=$(mktemp -d -t a-console-dmg)
+trap 'rm -rf "$stage"' EXIT
 link="$stage/GitHub Repository"
 cat > "$link" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -19,7 +20,7 @@ swift "$root/tools/icon/set_repository_icon.swift" "$link"
 SetFile -t ilht -c MACS "$link"
 mkdir -p "$root/dist"
 dmg="$root/dist/A-Console-$version-macOS.dmg"
-"$app/Contents/MacOS/uv" tool run --from dmgbuild==1.6.7 dmgbuild -s "$macos_dir/dmg-settings.py" \
+"$macos_dir/build/uv" --no-config tool run --from dmgbuild==1.6.7 dmgbuild -s "$macos_dir/dmg-settings.py" \
     -D "app=$app" -D "repository=$link" "A Console $version" "$dmg"
 hdiutil verify "$dmg"
 printf '%s\n' "$dmg"
