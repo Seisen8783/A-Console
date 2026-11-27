@@ -25,3 +25,9 @@ py -3.14 -m venv .venv-windows
 GitHub Actions 的 **Windows console** 工作流运行轨迹和桥接测试、构建安装包并生成 SHA-256。也可在 Windows 开发机进入 `windows` 目录，使用仓库同一虚拟环境依次执行 `python -m PyInstaller --noconfirm bridge.spec`、`python -m PyInstaller --noconfirm --windowed --paths .. --icon a-console.ico --add-data "a-console.ico:." --name "A Console" console.py` 、`powershell -NoProfile -File stage-uv.ps1` 和 `ISCC.exe Installer.iss`。
 
 发布前先在普通权限下，用干净 Windows 和真实 iPhone 验证打包后的桥接可枚举设备、定位到与真实位置明显不同的测试点、回放样例并恢复真实位置。随后使用最终安装包验证首次配对、开发者镜像准备、三种格式、暂停与跳转、自然结束、两台设备时的目标绑定、拔线后继续或清除、正常退出和强退后的恢复。安装机须没有 Python 和 uv。记录手机型号、iOS 与 Windows 版本，按[双平台发布流程](../docs/desktop-release.md)上传安装包和 SHA-256。当前尚未完成 Windows 真机验收。
+
+### Microsoft Store 的 MSIX 包
+
+Windows 工作流产出的 a-console-windows-msix-x64 包含用于 Partner Center 的未签名 .msix 和 SHA-256。也可在装有 Windows SDK 的开发机上完成上述 PyInstaller 与 uv 构建后，从 windows 目录运行 powershell -NoProfile -File msix/package.ps1。通过认证后由 Microsoft Store 签名。每次发布前更新 msix/AppxManifest.xml 的四段包版本，最后一段保持为 0。
+
+从 Windows「设置 → 应用 → 已安装的应用」可以卸载 MSIX 版。连接 iPhone 前，需要单独安装 Apple 设备支持并确认 Apple Mobile Device Service 正在运行。

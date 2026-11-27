@@ -31,6 +31,18 @@ jobs:
           if (-not $installer) { throw "Installer missing" }
           $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $($installer.Name)" | Set-Content -Encoding ascii "$($installer.FullName).sha256"
+      - name: Build unsigned MSIX for Microsoft Store
+        working-directory: windows
+        run: ./msix/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a-console-windows-msix-x64
+          path: windows/dist/A-Console-*-Windows-x64.msix*
+          if-no-files-found: error
+      - name: Verify MSIX install, launch and uninstall
+        shell: powershell
+        working-directory: windows
+        run: ./msix/test-install.ps1
       - name: Verify installed app starts
         working-directory: windows
         run: |
